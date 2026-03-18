@@ -85,11 +85,10 @@
   </div>
 
   <!-- ── Slots list ────────────────────────────────────────────────────────── -->
-  <div id="slotsWrap" class="px-3 pt-3 pb-28 space-y-2">
-    <div id="loadingRow" class="text-center text-gray-400 py-12 text-sm">
-      <span class="spinner">⏳</span> Loading…
-    </div>
+  <div id="loadingRow" class="text-center text-gray-400 py-12 text-sm">
+    <span class="spinner">⏳</span> Loading…
   </div>
+  <div id="slotsWrap" class="px-3 pt-3 pb-28 space-y-2"></div>
 
   <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
   <div id="backdrop" class="fixed inset-0 bg-black bg-opacity-40 z-40 hidden"
@@ -689,10 +688,19 @@
     }
 
     function isoToSlot(isoStr) {
-      // "2024-03-15T09:00:00+05:30" → "9:00 AM"
-      // Parse the time part accounting for +05:30 offset stored in string
-      const timePart = isoStr.slice(11, 16); // "HH:MM"
-      let [h, m] = timePart.split(':').map(Number);
+      // Handles both "+05:30" stored format and "Z" (UTC) from GCal API
+      let h, m;
+      if (isoStr.endsWith('Z')) {
+        // UTC — convert to IST (+5:30)
+        const d = new Date(isoStr);
+        const ist = new Date(d.getTime() + 5.5 * 3600000);
+        h = ist.getUTCHours();
+        m = ist.getUTCMinutes();
+      } else {
+        // "+05:30" format — read time digits directly
+        const timePart = isoStr.slice(11, 16);
+        [h, m] = timePart.split(':').map(Number);
+      }
       const ampm = h >= 12 ? 'PM' : 'AM';
       if (h > 12) h -= 12;
       if (h === 0) h = 12;
