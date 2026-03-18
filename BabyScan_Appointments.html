@@ -141,6 +141,13 @@
             <div id="v_phone" class="text-gray-800 text-base"></div>
           </div>
         </div>
+        <div id="v_advance_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">💰</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Advance Paid</div>
+            <div id="v_advance" class="text-gray-800 font-semibold text-green-700 text-base"></div>
+          </div>
+        </div>
       </div>
       <div class="flex gap-3 mt-5">
         <button onclick="switchToEdit()"
@@ -192,6 +199,29 @@
           <input id="f_phone" type="tel" placeholder="Patient phone (optional)"
                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
                         focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+        </div>
+
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+              Advance Amount (₹)
+            </label>
+            <input id="f_advance" type="number" inputmode="numeric" placeholder="0" min="0"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                          focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+              Payment Mode
+            </label>
+            <select id="f_adv_mode"
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                           focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+              <option value="">None</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+            </select>
+          </div>
         </div>
 
         <div class="flex gap-3">
@@ -387,12 +417,24 @@
             return m ? m[1].trim() : '';
           };
 
+          // Parse Advance: e.g. "₹1,000 (Cash)"
+          const advRaw  = getF('Advance');
+          let   advAmt  = 0, advMode = '';
+          if (advRaw) {
+            const am = advRaw.match(/[\d,]+/);
+            if (am) advAmt = parseFloat(am[0].replace(/,/g, ''));
+            const mm = advRaw.match(/\(([^)]+)\)/);
+            if (mm) advMode = mm[1].trim();
+          }
+
           parsed[timeStr] = {
             id     : ev.id,
             patient: patient || getF('Patient'),
             scan   : scan    || getF('Scan'),
             doctor : getF('Doctor'),
             phone  : getF('Phone'),
+            advance: advAmt,
+            mode   : advMode,
             time   : timeStr,
           };
         }
@@ -428,8 +470,9 @@
               </div>
               <div class="text-white font-semibold text-base leading-tight">${esc(ev.patient)}</div>
               <div class="text-red-100 text-sm mt-0.5">${esc(ev.scan)}</div>
-              ${ev.doctor ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
-              ${ev.phone  ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+              ${ev.doctor   ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
+              ${ev.phone    ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+              ${ev.advance > 0 ? `<div class="text-red-100 text-xs font-semibold mt-0.5">💰 ₹${ev.advance.toLocaleString('en-IN')} ${esc(ev.mode)}</div>` : ''}
             </div>`);
         } else if (isPast) {
           fragments.push(`
@@ -500,12 +543,14 @@
       document.getElementById('sheetTitle').textContent    = '➕ New Appointment';
       document.getElementById('sheetSubtitle').textContent = slot + ' · ' + friendlyDate(selectedDate);
 
-      document.getElementById('f_patient').value = '';
-      document.getElementById('f_scan').value    = '';
-      document.getElementById('f_doctor').value  = '';
-      document.getElementById('f_phone').value   = '';
-      document.getElementById('f_date').value    = selectedDate;
-      document.getElementById('f_time').value    = slot;
+      document.getElementById('f_patient').value  = '';
+      document.getElementById('f_scan').value     = '';
+      document.getElementById('f_doctor').value   = '';
+      document.getElementById('f_phone').value    = '';
+      document.getElementById('f_advance').value  = '';
+      document.getElementById('f_adv_mode').value = '';
+      document.getElementById('f_date').value     = selectedDate;
+      document.getElementById('f_time').value     = slot;
 
       document.getElementById('viewMode').classList.add('hidden');
       document.getElementById('editMode').classList.remove('hidden');
@@ -541,6 +586,14 @@
       } else {
         phRow.classList.add('hidden');
       }
+      const advRow = document.getElementById('v_advance_row');
+      if (ev.advance > 0) {
+        document.getElementById('v_advance').textContent =
+          `₹${ev.advance.toLocaleString('en-IN')} (${ev.mode || '—'})`;
+        advRow.classList.remove('hidden');
+      } else {
+        advRow.classList.add('hidden');
+      }
 
       document.getElementById('viewMode').classList.remove('hidden');
       document.getElementById('editMode').classList.add('hidden');
@@ -554,12 +607,14 @@
 
       document.getElementById('sheetTitle').textContent = '✏ Edit Appointment';
 
-      document.getElementById('f_patient').value = ev.patient || '';
-      document.getElementById('f_scan').value    = ev.scan    || '';
-      document.getElementById('f_doctor').value  = ev.doctor  || '';
-      document.getElementById('f_phone').value   = ev.phone   || '';
-      document.getElementById('f_date').value    = selectedDate;
-      document.getElementById('f_time').value    = ev.time    || currentSlot;
+      document.getElementById('f_patient').value  = ev.patient || '';
+      document.getElementById('f_scan').value     = ev.scan    || '';
+      document.getElementById('f_doctor').value   = ev.doctor  || '';
+      document.getElementById('f_phone').value    = ev.phone   || '';
+      document.getElementById('f_advance').value  = ev.advance > 0 ? ev.advance : '';
+      document.getElementById('f_adv_mode').value = ev.mode    || '';
+      document.getElementById('f_date').value     = selectedDate;
+      document.getElementById('f_time').value     = ev.time    || currentSlot;
 
       document.getElementById('editStatus').classList.add('hidden');
       document.getElementById('viewMode').classList.add('hidden');
@@ -579,24 +634,29 @@
 
     // ── Save ───────────────────────────────────────────────────────────────
     async function saveAppt() {
-      const patient = document.getElementById('f_patient').value.trim();
-      const scan    = document.getElementById('f_scan').value.trim();
-      const doctor  = document.getElementById('f_doctor').value.trim();
-      const phone   = document.getElementById('f_phone').value.trim();
-      const dateISO = document.getElementById('f_date').value;
-      const timeStr = document.getElementById('f_time').value;
+      const patient  = document.getElementById('f_patient').value.trim();
+      const scan     = document.getElementById('f_scan').value.trim();
+      const doctor   = document.getElementById('f_doctor').value.trim();
+      const phone    = document.getElementById('f_phone').value.trim();
+      const advance  = parseFloat(document.getElementById('f_advance').value) || 0;
+      const advMode  = document.getElementById('f_adv_mode').value.trim();
+      const dateISO  = document.getElementById('f_date').value;
+      const timeStr  = document.getElementById('f_time').value;
 
       if (!patient) { showEditStatus('Patient name is required', 'red'); return; }
       if (!scan)    { showEditStatus('Scan description is required', 'red'); return; }
       if (!timeStr) { showEditStatus('Please select a time slot', 'red'); return; }
       if (!dateISO) { showEditStatus('Please select a date', 'red'); return; }
+      if (advance > 0 && !advMode) {
+        showEditStatus('Please select Payment Mode for the advance', 'red'); return;
+      }
 
       const btn = document.getElementById('saveBtn');
       btn.textContent = '⏳ Saving…';
       btn.disabled    = true;
 
       try {
-        const body = makeEventBody(patient, scan, doctor, phone, dateISO, timeStr);
+        const body = makeEventBody(patient, scan, doctor, phone, dateISO, timeStr, advance, advMode);
         if (editingId) {
           await apiFetch(
             `https://www.googleapis.com/calendar/v3/calendars/primary/events/${editingId}`,
@@ -639,7 +699,7 @@
     }
 
     // ── Build GCal event body (matches FormF_GCal.py exactly) ─────────────
-    function makeEventBody(patient, scan, doctor, phone, dateISO, timeStr) {
+    function makeEventBody(patient, scan, doctor, phone, dateISO, timeStr, advance = 0, advMode = '') {
       const startISO = slotToISO(dateISO, timeStr);
       const endISO   = addMins(startISO, 30);
 
@@ -650,6 +710,10 @@
       ];
       if (doctor) descLines.push(`Doctor   : ${doctor}`);
       if (phone)  descLines.push(`Phone    : ${phone}`);
+      if (advance > 0 && advMode) {
+        const fmtAdv = advance.toLocaleString('en-IN');
+        descLines.push(`Advance  : ₹${fmtAdv} (${advMode})`);
+      }
       descLines.push('\nBooked via Baby Scan FormF App');
 
       return {
