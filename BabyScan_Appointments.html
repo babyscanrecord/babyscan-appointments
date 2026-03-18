@@ -833,6 +833,100 @@
       el.style.color         = color === 'green' ? '#065F46' : '#991B1B';
       el.classList.remove('hidden');
     }
+
+    // ── Swipe gestures ─────────────────────────────────────────────────────
+    (function () {
+      // Thresholds
+      const SWIPE_H_MIN   = 60;   // px horizontal to count as left/right swipe
+      const SWIPE_V_MIN   = 80;   // px downward to count as pull-to-refresh
+      const SWIPE_V_LOCK  = 40;   // px horizontal deviation cancels pull-refresh
+      const RATIO_H       = 1.5;  // horiz must exceed vertical × ratio for date swipe
+
+      let tx = 0, ty = 0;         // touch start coords
+      let active = false;
+
+      // Pull-to-refresh visual indicator
+      const ptr = document.createElement('div');
+      ptr.id = 'pullIndicator';
+      Object.assign(ptr.style, {
+        position   : 'fixed',
+        top        : '64px',
+        left       : '50%',
+        transform  : 'translateX(-50%) translateY(-60px)',
+        background : '#0D9488',
+        color      : '#fff',
+        borderRadius: '999px',
+        padding    : '6px 20px',
+        fontSize   : '13px',
+        fontWeight : '600',
+        zIndex     : '999',
+        transition : 'transform 0.2s ease',
+        pointerEvents: 'none',
+        whiteSpace : 'nowrap',
+      });
+      ptr.textContent = '↓ Pull to refresh';
+      document.body.appendChild(ptr);
+
+      function sheetOpen() {
+        const s = document.getElementById('sheet');
+        return s && !s.classList.contains('translate-y-full');
+      }
+
+      document.addEventListener('touchstart', (e) => {
+        if (sheetOpen()) return;   // gestures disabled while modal is open
+        const t = e.touches[0];
+        tx = t.clientX;
+        ty = t.clientY;
+        active = true;
+      }, { passive: true });
+
+      document.addEventListener('touchmove', (e) => {
+        if (!active || sheetOpen()) return;
+        const dy = e.touches[0].clientY - ty;
+        const dx = Math.abs(e.touches[0].clientX - tx);
+
+        // Show pull indicator while pulling down
+        if (dy > 10 && dx < SWIPE_V_LOCK) {
+          const progress = Math.min(dy / SWIPE_V_MIN, 1);
+          ptr.style.transform =
+            `translateX(-50%) translateY(${-60 + progress * 70}px)`;
+          ptr.textContent = dy >= SWIPE_V_MIN ? '↑ Release to refresh' : '↓ Pull to refresh';
+        } else {
+          ptr.style.transform = 'translateX(-50%) translateY(-60px)';
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchend', (e) => {
+        if (!active || sheetOpen()) { active = false; return; }
+        active = false;
+
+        // Reset indicator
+        ptr.style.transform = 'translateX(-50%) translateY(-60px)';
+        ptr.textContent = '↓ Pull to refresh';
+
+        const t  = e.changedTouches[0];
+        const dx = t.clientX - tx;
+        const dy = t.clientY - ty;
+        const adx = Math.abs(dx);
+        const ady = Math.abs(dy);
+
+        // ── Pull-to-refresh: swipe down on the main list ──────────────────
+        if (dy >= SWIPE_V_MIN && adx < SWIPE_V_LOCK) {
+          doRefresh();
+          return;
+        }
+
+        // ── Date navigation: horizontal swipe ─────────────────────────────
+        if (adx >= SWIPE_H_MIN && adx >= ady * RATIO_H) {
+          if (dx < 0) {
+            navigate(1);   // swipe left  → next day
+          } else {
+            navigate(-1);  // swipe right → previous day
+          }
+        }
+      }, { passive: true });
+    })();
+
   </script>
 
 </body>
