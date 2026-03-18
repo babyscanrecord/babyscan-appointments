@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Baby Scan">
+  <meta name="theme-color" content="#1ABC9C">
+  <title>Baby Scan — Appointments</title>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       CONFIGURATION — Replace CLIENT_ID with your Web OAuth2 Client ID
+       from Google Cloud Console → APIs & Services → Credentials
+       Authorized JavaScript origins must include your GitHub Pages URL
+       ═══════════════════════════════════════════════════════════════ -->
+  <script>
+    const CLIENT_ID = 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com';
+  </script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .slot-card { transition: transform 0.1s, box-shadow 0.1s; }
+    .slot-card:active { transform: scale(0.97); }
+    .modal-sheet { transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
+    input, select { font-size: 16px !important; } /* prevent iOS zoom */
+    .spinner { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <div class="bg-teal-500 text-white shadow-lg sticky top-0 z-30">
+    <div class="flex justify-between items-center px-4 py-3">
+      <div>
+        <div class="text-lg font-bold leading-tight">🏥 Baby Scan</div>
+        <div class="text-xs text-teal-100">Fetal Medicine &amp; Gynec Imaging</div>
+      </div>
+      <button id="authBtn" onclick="handleAuth()"
+              class="text-sm font-semibold px-3 py-2 rounded-xl bg-teal-700 active:bg-teal-900">
+        Connect Calendar
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Status toast ─────────────────────────────────────────────────────── -->
+  <div id="toast" class="fixed top-16 left-4 right-4 z-50 hidden">
+    <div id="toastInner" class="rounded-xl px-4 py-3 text-sm font-semibold text-center shadow-lg"></div>
+  </div>
+
+  <!-- ── Date navigation ──────────────────────────────────────────────────── -->
+  <div class="bg-white border-b px-4 py-3 flex items-center justify-between">
+    <button onclick="navigate(-1)"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200 text-teal-600 text-xl font-bold">
+      ‹
+    </button>
+    <div class="text-center">
+      <div id="dateDisplay" class="text-base font-bold text-gray-800"></div>
+      <div id="dayDisplay" class="text-xs text-gray-500 mt-0.5"></div>
+    </div>
+    <button onclick="navigate(1)"
+            class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200 text-teal-600 text-xl font-bold">
+      ›
+    </button>
+  </div>
+
+  <!-- ── Quick action bar ─────────────────────────────────────────────────── -->
+  <div class="bg-white border-b px-4 py-2 flex gap-2">
+    <button onclick="goToday()"
+            class="flex-1 bg-teal-500 text-white text-sm font-semibold py-2 rounded-lg active:bg-teal-600">
+      📅 Today
+    </button>
+    <button onclick="doRefresh()"
+            class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold py-2 rounded-lg active:bg-gray-300">
+      🔄 Refresh
+    </button>
+  </div>
+
+  <!-- ── Slots list ────────────────────────────────────────────────────────── -->
+  <div id="slotsWrap" class="px-3 pt-3 pb-28 space-y-2">
+    <div id="loadingRow" class="text-center text-gray-400 py-12 text-sm">
+      <span class="spinner">⏳</span> Loading…
+    </div>
+  </div>
+
+  <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
+  <div id="backdrop" class="fixed inset-0 bg-black bg-opacity-40 z-40 hidden"
+       onclick="closeModal()"></div>
+
+  <!-- ── Bottom-sheet appointment form ────────────────────────────────────── -->
+  <div id="sheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+
+    <!-- Sheet header -->
+    <div class="bg-teal-500 rounded-t-2xl px-5 py-4 flex justify-between items-center">
+      <div>
+        <div id="sheetTitle" class="text-white font-bold text-lg">New Appointment</div>
+        <div id="sheetSubtitle" class="text-teal-100 text-xs mt-0.5"></div>
+      </div>
+      <button onclick="closeModal()"
+              class="w-8 h-8 bg-teal-700 rounded-full flex items-center justify-center text-white font-bold active:bg-teal-900">
+        ✕
+      </button>
+    </div>
+
+    <!-- View mode (existing appointment) -->
+    <div id="viewMode" class="hidden px-5 py-4">
+      <div class="space-y-3">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">👤</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Patient</div>
+            <div id="v_patient" class="text-gray-800 font-semibold text-base"></div>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">🔬</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Scan</div>
+            <div id="v_scan" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+        <div id="v_doctor_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">👨‍⚕️</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Referring Doctor</div>
+            <div id="v_doctor" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+        <div id="v_phone_row" class="flex items-start gap-3 hidden">
+          <div class="text-2xl">📱</div>
+          <div>
+            <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Phone</div>
+            <div id="v_phone" class="text-gray-800 text-base"></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button onclick="switchToEdit()"
+                class="flex-1 bg-teal-500 text-white py-3 rounded-xl font-bold active:bg-teal-600">
+          ✏ Edit
+        </button>
+        <button onclick="deleteAppt()"
+                class="bg-red-500 text-white px-5 py-3 rounded-xl font-bold active:bg-red-600">
+          🗑
+        </button>
+      </div>
+    </div>
+
+    <!-- Edit / New mode -->
+    <div id="editMode" class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height: 70vh;">
+      <div class="space-y-3">
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+            Patient Name <span class="text-red-500">*</span>
+          </label>
+          <input id="f_patient" type="text" placeholder="Enter patient name" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+            Scan / Procedure <span class="text-red-500">*</span>
+          </label>
+          <input id="f_scan" type="text" placeholder="e.g. USG Abdomen, Anomaly Scan" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+            Referring Doctor
+          </label>
+          <input id="f_doctor" type="text" placeholder="Doctor name (optional)" autocomplete="off"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+            Mobile Number
+          </label>
+          <input id="f_phone" type="tel" placeholder="Patient phone (optional)"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+        </div>
+
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+              Date <span class="text-red-500">*</span>
+            </label>
+            <input id="f_date" type="date"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                          focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">
+              Time <span class="text-red-500">*</span>
+            </label>
+            <select id="f_time"
+                    class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                           focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-transparent bg-gray-50">
+              <option value="">Select time</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="editStatus" class="hidden rounded-xl px-4 py-3 text-sm font-semibold text-center"></div>
+
+        <div class="flex gap-3 pt-1">
+          <button id="saveBtn" onclick="saveAppt()"
+                  class="flex-1 bg-teal-500 text-white py-3.5 rounded-xl font-bold text-base active:bg-teal-600">
+            💾 Save Appointment
+          </button>
+          <button id="cancelEditBtn" onclick="closeModal()"
+                  class="bg-gray-200 text-gray-600 px-4 py-3.5 rounded-xl font-bold active:bg-gray-300 hidden">
+            Cancel
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       JavaScript
+       ════════════════════════════════════════════════════════════════════════ -->
+  <script>
+    // ── Constants ──────────────────────────────────────────────────────────
+    const SCOPES = 'https://www.googleapis.com/auth/calendar';
+    const TZ     = 'Asia/Kolkata';
+    const SLOTS  = [
+      '9:00 AM',  '9:30 AM',  '10:00 AM', '10:30 AM',
+      '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+      '1:00 PM',  '1:30 PM',  '2:00 PM',  '2:30 PM',
+      '3:00 PM',  '3:30 PM',  '4:00 PM',  '4:30 PM',
+      '5:00 PM',  '5:30 PM',
+    ];
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let tokenClient;
+    let accessToken  = localStorage.getItem('bs_token')  || '';
+    let tokenExpiry  = +localStorage.getItem('bs_expiry') || 0;
+    let selectedDate = isoToday();       // YYYY-MM-DD
+    let cache        = {};               // YYYY-MM-DD → { slotStr: eventObj }
+    let editingId    = null;             // GCal event ID being edited (null = new)
+    let currentSlot  = null;
+
+    // ── Boot ───────────────────────────────────────────────────────────────
+    window.addEventListener('load', () => {
+      fillTimeSelect();
+      renderDateNav();
+      initGIS();
+      if (tokenValid()) {
+        markConnected();
+        loadSlots();
+      } else {
+        renderSlots({});
+      }
+    });
+
+    // ── Google Identity Services ────────────────────────────────────────────
+    function initGIS() {
+      if (typeof google === 'undefined') { setTimeout(initGIS, 400); return; }
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id : CLIENT_ID,
+        scope     : SCOPES,
+        callback  : onToken,
+      });
+    }
+
+    function onToken(resp) {
+      if (resp.error) { toast('Auth error: ' + resp.error, 'red'); return; }
+      accessToken = resp.access_token;
+      tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+      localStorage.setItem('bs_token',  accessToken);
+      localStorage.setItem('bs_expiry', tokenExpiry);
+      markConnected();
+      loadSlots();
+    }
+
+    function tokenValid() {
+      return !!(accessToken && Date.now() < tokenExpiry);
+    }
+
+    function handleAuth() {
+      if (tokenValid()) {
+        if (confirm('Disconnect from Google Calendar?')) {
+          accessToken = ''; tokenExpiry = 0;
+          localStorage.removeItem('bs_token');
+          localStorage.removeItem('bs_expiry');
+          const btn = document.getElementById('authBtn');
+          btn.textContent = 'Connect Calendar';
+          btn.className = 'text-sm font-semibold px-3 py-2 rounded-xl bg-teal-700 active:bg-teal-900';
+          cache = {};
+          renderSlots({});
+        }
+        return;
+      }
+      if (!tokenClient) { initGIS(); setTimeout(handleAuth, 600); return; }
+      tokenClient.requestAccessToken({ prompt: '' });
+    }
+
+    function markConnected() {
+      const btn = document.getElementById('authBtn');
+      btn.textContent = '✅ Connected';
+      btn.className = 'text-sm font-semibold px-3 py-2 rounded-xl bg-green-700 active:bg-green-900';
+    }
+
+    // ── API calls ──────────────────────────────────────────────────────────
+    async function apiFetch(url, opts = {}) {
+      if (!tokenValid()) {
+        // Try to refresh silently first
+        await new Promise((res) => {
+          if (!tokenClient) { res(); return; }
+          const orig = tokenClient.callback;
+          tokenClient.callback = (r) => { onToken(r); tokenClient.callback = orig; res(); };
+          tokenClient.requestAccessToken({ prompt: '' });
+        });
+        if (!tokenValid()) throw new Error('Not authenticated. Please connect Google Calendar.');
+      }
+      const res = await fetch(url, {
+        ...opts,
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type' : 'application/json',
+          ...(opts.headers || {}),
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'HTTP ' + res.status);
+      }
+      return res.status === 204 ? null : res.json();
+    }
+
+    // ── Load events ────────────────────────────────────────────────────────
+    async function loadSlots(forceRefresh = false) {
+      if (!forceRefresh && cache[selectedDate]) {
+        renderSlots(cache[selectedDate]);
+        return;
+      }
+
+      document.getElementById('loadingRow').style.display = 'block';
+      document.getElementById('loadingRow').innerHTML = '<span class="spinner">⏳</span> Loading…';
+
+      if (!tokenValid()) {
+        renderSlots({});
+        return;
+      }
+
+      try {
+        const tMin = encodeURIComponent(`${selectedDate}T00:00:00+05:30`);
+        const tMax = encodeURIComponent(`${selectedDate}T23:59:59+05:30`);
+        const url  = `https://www.googleapis.com/calendar/v3/calendars/primary/events`
+                   + `?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime`;
+
+        const data   = await apiFetch(url);
+        const parsed = {};
+
+        for (const ev of (data.items || [])) {
+          const st = ev.start?.dateTime;
+          if (!st) continue;
+          const timeStr = isoToSlot(st);
+
+          // Parse summary: "🏥 PatientName — ScanDescription"
+          const summ     = ev.summary || '';
+          const stripped = summ.replace(/^🏥\s*/, '');
+          const dashPos  = stripped.indexOf(' — ');
+          const patient  = dashPos >= 0 ? stripped.slice(0, dashPos) : stripped;
+          const scan     = dashPos >= 0 ? stripped.slice(dashPos + 3) : '';
+
+          // Parse description fields
+          const desc     = ev.description || '';
+          const getF     = (key) => {
+            const m = desc.match(new RegExp(key + '\\s*:\\s*(.+)'));
+            return m ? m[1].trim() : '';
+          };
+
+          parsed[timeStr] = {
+            id     : ev.id,
+            patient: patient || getF('Patient'),
+            scan   : scan    || getF('Scan'),
+            doctor : getF('Doctor'),
+            phone  : getF('Phone'),
+            time   : timeStr,
+          };
+        }
+
+        cache[selectedDate] = parsed;
+        renderSlots(parsed);
+      } catch (e) {
+        toast('Failed to load: ' + e.message, 'red');
+        renderSlots(cache[selectedDate] || {});
+      }
+    }
+
+    // ── Render slot grid ──────────────────────────────────────────────────
+    function renderSlots(events) {
+      const wrap = document.getElementById('slotsWrap');
+      document.getElementById('loadingRow').style.display = 'none';
+
+      const nowIST    = nowInIST();
+      const isToday_  = (selectedDate === isoToday());
+      const fragments = [];
+
+      for (const slot of SLOTS) {
+        const ev     = events[slot];
+        const isPast = isToday_ && slotPast(slot, nowIST);
+
+        if (ev) {
+          fragments.push(`
+            <div class="slot-card bg-red-500 rounded-2xl p-4 shadow-sm cursor-pointer fade-in"
+                 onclick="openView('${slot}')">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-red-700 text-white text-xs px-2 py-0.5 rounded-full">Booked</span>
+              </div>
+              <div class="text-white font-semibold text-base leading-tight">${esc(ev.patient)}</div>
+              <div class="text-red-100 text-sm mt-0.5">${esc(ev.scan)}</div>
+              ${ev.doctor ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
+              ${ev.phone  ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+            </div>`);
+        } else if (isPast) {
+          fragments.push(`
+            <div class="slot-card bg-gray-200 rounded-2xl p-4 fade-in">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500 font-bold text-sm">${slot}</span>
+                <span class="text-gray-400 text-xs">Past</span>
+              </div>
+              <div class="text-gray-400 text-sm mt-0.5">— —</div>
+            </div>`);
+        } else {
+          fragments.push(`
+            <div class="slot-card bg-emerald-500 rounded-2xl p-4 shadow-sm cursor-pointer fade-in"
+                 onclick="openNew('${slot}')">
+              <div class="flex justify-between items-center">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-emerald-700 text-white text-xs px-2 py-0.5 rounded-full">Available</span>
+              </div>
+              <div class="text-emerald-100 text-sm mt-0.5">Tap to book</div>
+            </div>`);
+        }
+      }
+
+      wrap.innerHTML = fragments.join('');
+    }
+
+    // ── Date navigation ────────────────────────────────────────────────────
+    function navigate(delta) {
+      const d = new Date(selectedDate + 'T12:00:00');
+      d.setDate(d.getDate() + delta);
+      selectedDate = d.toISOString().slice(0, 10);
+      renderDateNav();
+      loadSlots();
+    }
+
+    function goToday() {
+      selectedDate = isoToday();
+      renderDateNav();
+      loadSlots();
+    }
+
+    function doRefresh() {
+      delete cache[selectedDate];
+      loadSlots(true);
+    }
+
+    function renderDateNav() {
+      const d      = new Date(selectedDate + 'T12:00:00');
+      const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const months = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+      document.getElementById('dateDisplay').textContent =
+        `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      const isToday_ = selectedDate === isoToday();
+      document.getElementById('dayDisplay').textContent =
+        days[d.getDay()] + (isToday_ ? ' · Today' : '');
+    }
+
+    // ── Open modals ────────────────────────────────────────────────────────
+    function openNew(slot) {
+      if (!tokenValid()) {
+        toast('Connect Google Calendar first', 'red');
+        return;
+      }
+      editingId   = null;
+      currentSlot = slot;
+
+      document.getElementById('sheetTitle').textContent    = '➕ New Appointment';
+      document.getElementById('sheetSubtitle').textContent = slot + ' · ' + friendlyDate(selectedDate);
+
+      document.getElementById('f_patient').value = '';
+      document.getElementById('f_scan').value    = '';
+      document.getElementById('f_doctor').value  = '';
+      document.getElementById('f_phone').value   = '';
+      document.getElementById('f_date').value    = selectedDate;
+      document.getElementById('f_time').value    = slot;
+
+      document.getElementById('viewMode').classList.add('hidden');
+      document.getElementById('editMode').classList.remove('hidden');
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+      document.getElementById('editStatus').classList.add('hidden');
+
+      showSheet();
+    }
+
+    function openView(slot) {
+      const ev = (cache[selectedDate] || {})[slot];
+      if (!ev) return;
+      editingId   = ev.id;
+      currentSlot = slot;
+
+      document.getElementById('sheetTitle').textContent    = '📋 Appointment';
+      document.getElementById('sheetSubtitle').textContent = slot + ' · ' + friendlyDate(selectedDate);
+
+      document.getElementById('v_patient').textContent = ev.patient || '—';
+      document.getElementById('v_scan').textContent    = ev.scan    || '—';
+
+      const drRow = document.getElementById('v_doctor_row');
+      const phRow = document.getElementById('v_phone_row');
+      if (ev.doctor) {
+        document.getElementById('v_doctor').textContent = ev.doctor;
+        drRow.classList.remove('hidden');
+      } else {
+        drRow.classList.add('hidden');
+      }
+      if (ev.phone) {
+        document.getElementById('v_phone').textContent = ev.phone;
+        phRow.classList.remove('hidden');
+      } else {
+        phRow.classList.add('hidden');
+      }
+
+      document.getElementById('viewMode').classList.remove('hidden');
+      document.getElementById('editMode').classList.add('hidden');
+
+      showSheet();
+    }
+
+    function switchToEdit() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev) return;
+
+      document.getElementById('sheetTitle').textContent = '✏ Edit Appointment';
+
+      document.getElementById('f_patient').value = ev.patient || '';
+      document.getElementById('f_scan').value    = ev.scan    || '';
+      document.getElementById('f_doctor').value  = ev.doctor  || '';
+      document.getElementById('f_phone').value   = ev.phone   || '';
+      document.getElementById('f_date').value    = selectedDate;
+      document.getElementById('f_time').value    = ev.time    || currentSlot;
+
+      document.getElementById('editStatus').classList.add('hidden');
+      document.getElementById('viewMode').classList.add('hidden');
+      document.getElementById('editMode').classList.remove('hidden');
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+    }
+
+    function showSheet() {
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('sheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeModal() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('sheet').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    // ── Save ───────────────────────────────────────────────────────────────
+    async function saveAppt() {
+      const patient = document.getElementById('f_patient').value.trim();
+      const scan    = document.getElementById('f_scan').value.trim();
+      const doctor  = document.getElementById('f_doctor').value.trim();
+      const phone   = document.getElementById('f_phone').value.trim();
+      const dateISO = document.getElementById('f_date').value;
+      const timeStr = document.getElementById('f_time').value;
+
+      if (!patient) { showEditStatus('Patient name is required', 'red'); return; }
+      if (!scan)    { showEditStatus('Scan description is required', 'red'); return; }
+      if (!timeStr) { showEditStatus('Please select a time slot', 'red'); return; }
+      if (!dateISO) { showEditStatus('Please select a date', 'red'); return; }
+
+      const btn = document.getElementById('saveBtn');
+      btn.textContent = '⏳ Saving…';
+      btn.disabled    = true;
+
+      try {
+        const body = makeEventBody(patient, scan, doctor, phone, dateISO, timeStr);
+        if (editingId) {
+          await apiFetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${editingId}`,
+            { method: 'PUT', body: JSON.stringify(body) }
+          );
+        } else {
+          await apiFetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events`,
+            { method: 'POST', body: JSON.stringify(body) }
+          );
+        }
+        delete cache[dateISO];
+        closeModal();
+        toast(editingId ? '✅ Appointment updated' : '✅ Appointment saved', 'green');
+        if (dateISO === selectedDate) await loadSlots();
+      } catch (e) {
+        showEditStatus('Error: ' + e.message, 'red');
+      } finally {
+        btn.textContent = '💾 Save Appointment';
+        btn.disabled    = false;
+      }
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────────────
+    async function deleteAppt() {
+      if (!editingId) return;
+      if (!confirm('Delete this appointment from Google Calendar?')) return;
+      try {
+        await apiFetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${editingId}`,
+          { method: 'DELETE' }
+        );
+        delete cache[selectedDate];
+        closeModal();
+        toast('✅ Appointment deleted', 'green');
+        await loadSlots();
+      } catch (e) {
+        toast('Delete failed: ' + e.message, 'red');
+      }
+    }
+
+    // ── Build GCal event body (matches FormF_GCal.py exactly) ─────────────
+    function makeEventBody(patient, scan, doctor, phone, dateISO, timeStr) {
+      const startISO = slotToISO(dateISO, timeStr);
+      const endISO   = addMins(startISO, 30);
+
+      const summary   = `🏥 ${patient} — ${scan || 'Scan'}`;
+      const descLines = [
+        `Patient  : ${patient}`,
+        `Scan     : ${scan || 'Scan'}`,
+      ];
+      if (doctor) descLines.push(`Doctor   : ${doctor}`);
+      if (phone)  descLines.push(`Phone    : ${phone}`);
+      descLines.push('\nBooked via Baby Scan FormF App');
+
+      return {
+        summary,
+        description: descLines.join('\n'),
+        start      : { dateTime: startISO, timeZone: TZ },
+        end        : { dateTime: endISO,   timeZone: TZ },
+        reminders  : {
+          useDefault: false,
+          overrides : [
+            { method: 'popup', minutes: 60 },
+            { method: 'popup', minutes: 15 },
+          ],
+        },
+        colorId: '2',  // Sage green — matches desktop app
+      };
+    }
+
+    // ── Time / date helpers ────────────────────────────────────────────────
+    function slotToISO(dateISO, timeStr) {
+      // "9:00 AM" + "2024-03-15" → "2024-03-15T09:00:00+05:30"
+      const [tp, ampm] = timeStr.split(' ');
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return `${dateISO}T${pad(h)}:${pad(m)}:00+05:30`;
+    }
+
+    function addMins(isoStr, mins) {
+      // Add minutes to an ISO string like "2024-03-15T09:00:00+05:30"
+      const [datePart, rest] = isoStr.split('T');
+      let [hh, mm] = rest.slice(0, 5).split(':').map(Number);
+      mm += mins;
+      if (mm >= 60) { mm -= 60; hh += 1; }
+      return `${datePart}T${pad(hh)}:${pad(mm)}:00+05:30`;
+    }
+
+    function isoToSlot(isoStr) {
+      // "2024-03-15T09:00:00+05:30" → "9:00 AM"
+      // Parse the time part accounting for +05:30 offset stored in string
+      const timePart = isoStr.slice(11, 16); // "HH:MM"
+      let [h, m] = timePart.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12;
+      if (h === 0) h = 12;
+      return `${h}:${pad(m)} ${ampm}`;
+    }
+
+    function isoToday() {
+      // Returns today as YYYY-MM-DD in IST
+      const now = new Date();
+      const ist = new Date(now.getTime() + 5.5 * 3600000);
+      return ist.toISOString().slice(0, 10);
+    }
+
+    function nowInIST() {
+      const now = new Date();
+      return new Date(now.getTime() + 5.5 * 3600000);
+    }
+
+    function slotPast(timeStr, nowIST) {
+      const [tp, ampm] = timeStr.split(' ');
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      const slotMins = h * 60 + m;
+      const nowMins  = nowIST.getUTCHours() * 60 + nowIST.getUTCMinutes();
+      return slotMins < nowMins;
+    }
+
+    function friendlyDate(isoDate) {
+      const d      = new Date(isoDate + 'T12:00:00');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${d.getDate()} ${months[d.getMonth()]}`;
+    }
+
+    function pad(n)  { return String(n).padStart(2, '0'); }
+    function esc(s)  {
+      return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── UI helpers ─────────────────────────────────────────────────────────
+    function fillTimeSelect() {
+      const sel = document.getElementById('f_time');
+      SLOTS.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        sel.appendChild(o);
+      });
+    }
+
+    function toast(msg, color) {
+      const wrap  = document.getElementById('toast');
+      const inner = document.getElementById('toastInner');
+      inner.textContent = msg;
+      inner.style.background = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      inner.style.color      = color === 'green' ? '#065F46' : '#991B1B';
+      wrap.classList.remove('hidden');
+      setTimeout(() => wrap.classList.add('hidden'), 3000);
+    }
+
+    function showEditStatus(msg, color) {
+      const el = document.getElementById('editStatus');
+      el.textContent         = msg;
+      el.style.background    = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      el.style.color         = color === 'green' ? '#065F46' : '#991B1B';
+      el.classList.remove('hidden');
+    }
+  </script>
+
+</body>
+</html>
