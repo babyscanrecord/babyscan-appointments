@@ -869,25 +869,37 @@
       if (ph.length === 10)   ph = '91' + ph;
       if (!ph) { alert('No valid phone number to send WhatsApp.'); return; }
 
+      // Arrival time only — never show actual appointment time
       const arrive = patientArrivalTime(timeStr);
 
-      const d = new Date(dateISO + 'T12:00:00');
-      const months = ['Jan','Feb','Mar','Apr','May','Jun',
-                      'Jul','Aug','Sep','Oct','Nov','Dec'];
-      const dateDisplay = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      // Date formatted as DD-MM-YYYY (matches desktop)
+      const d    = new Date(dateISO + 'T12:00:00');
+      const dd   = String(d.getDate()).padStart(2, '0');
+      const mon  = String(d.getMonth() + 1).padStart(2, '0');
+      const yr   = d.getFullYear();
+      const dateFmt = `${dd}-${mon}-${yr}`;
 
-      let msg  = `📅 *Appointment Notification*\n`;
-          msg += `Baby Scan Fetal Medicine & Gynec Imaging\n\n`;
-          msg += `Dear ${patient},\n`;
-          msg += `Your appointment for *${scan}* is confirmed on *${dateDisplay}* at *${timeStr}*.\n`;
-      if (arrive !== timeStr) {
-          msg += `Please arrive by *${arrive}*.\n`;
-      }
+      let msg  = `🏥 *Baby Scan Fetal Medicine and Gynec Imaging*\n`;
+          msg += `Rameshwar Complex, Dairy Road, Radhanpur Circle, Mehsana\n`;
+          msg += `📞 9537222217\n`;
+          msg += `\n`;
+          msg += `👤 Patient: *${patient}*\n`;
+          msg += `📅 Date: ${dateFmt}\n`;
+          msg += `👶 Scan: ${scan}\n`;
+          msg += `📅 Appointment: *${dateFmt} | ${arrive}*\n`;
       if (advance > 0) {
         const fmtAdv = advance.toLocaleString('en-IN');
-          msg += `\n💰 Advance paid: ₹${fmtAdv}${mode ? ' (' + mode + ')' : ''}\n`;
+          msg += `\n💰 Amount Paid: *₹${fmtAdv}*\n`;
+          msg += `💳 Payment Mode: ${mode}\n`;
       }
-          msg += `\nThank you 🙏\nBaby Scan, Mehsana`;
+          msg += `\n`;
+          msg += `According to Baby's Position sonography may take 3 to 4 hours.\n`;
+          msg += `Fasting is not mandatory for sonography.\n`;
+          msg += `\n`;
+          msg += `સોનોગ્રાફીમાં બાળકની પોઝિશન પ્રમાણે 3 થી 4 કલાકનો ટાઈમ લાગી શકે છે.\n`;
+          msg += `સોનોગ્રાફી માટે ભૂખ્યા પેટે આવવાની જરૂર નથી.\n`;
+          msg += `\n`;
+          msg += `Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
 
       window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
     }
