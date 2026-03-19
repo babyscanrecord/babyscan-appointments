@@ -154,6 +154,10 @@
                 class="flex-1 bg-teal-500 text-white py-3 rounded-xl font-bold active:bg-teal-600">
           ✏ Edit
         </button>
+        <button id="waViewBtn" onclick="sendWhatsAppView()"
+                class="bg-green-500 text-white px-4 py-3 rounded-xl font-bold active:bg-green-600 hidden">
+          📱 WA
+        </button>
         <button onclick="deleteAppt()"
                 class="bg-red-500 text-white px-5 py-3 rounded-xl font-bold active:bg-red-600">
           🗑
@@ -270,6 +274,7 @@
     const SCOPES = 'https://www.googleapis.com/auth/calendar';
     const TZ     = 'Asia/Kolkata';
     const SLOTS  = [
+      '8:30 AM',
       '9:00 AM',  '9:30 AM',  '10:00 AM', '10:30 AM',
       '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
       '1:00 PM',  '1:30 PM',  '2:00 PM',  '2:30 PM',
@@ -586,6 +591,13 @@
       } else {
         phRow.classList.add('hidden');
       }
+      // Show WhatsApp button only when a phone number is available
+      const waBtn = document.getElementById('waViewBtn');
+      if (ev.phone) {
+        waBtn.classList.remove('hidden');
+      } else {
+        waBtn.classList.add('hidden');
+      }
       const advRow = document.getElementById('v_advance_row');
       if (ev.advance > 0) {
         document.getElementById('v_advance').textContent =
@@ -672,6 +684,14 @@
         closeModal();
         toast(editingId ? '✅ Appointment updated' : '✅ Appointment saved', 'green');
         if (dateISO === selectedDate) await loadSlots();
+        // Offer to send WhatsApp notification if phone is filled
+        if (phone) {
+          setTimeout(() => {
+            if (confirm(`📱 Send WhatsApp notification to ${phone}?`)) {
+              sendWhatsAppMsg(patient, scan, dateISO, timeStr, advance, advMode, phone);
+            }
+          }, 600);
+        }
       } catch (e) {
         showEditStatus('Error: ' + e.message, 'red');
       } finally {
@@ -832,6 +852,66 @@
       el.style.background    = color === 'green' ? '#D1FAE5' : '#FEE2E2';
       el.style.color         = color === 'green' ? '#065F46' : '#991B1B';
       el.classList.remove('hidden');
+    }
+
+    // ── WhatsApp notification ──────────────────────────────────────────────
+    function sendWhatsAppView() {
+      const ev = (cache[selectedDate] || {})[currentSlot];
+      if (!ev || !ev.phone) return;
+      sendWhatsAppMsg(ev.patient, ev.scan, selectedDate,
+                      ev.time, ev.advance || 0, ev.mode || '', ev.phone);
+    }
+
+    function sendWhatsAppMsg(patient, scan, dateISO, timeStr, advance, mode, phone) {
+      // Normalise to Indian international format (91XXXXXXXXXX)
+      let ph = (phone || '').replace(/\D/g, '');
+      if (ph.startsWith('0')) ph = '91' + ph.slice(1);
+      if (ph.length === 10)   ph = '91' + ph;
+      if (!ph) { alert('No valid phone number to send WhatsApp.'); return; }
+
+      const arrive = patientArrivalTime(timeStr);
+
+      const d = new Date(dateISO + 'T12:00:00');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec'];
+      const dateDisplay = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+
+      let msg  = `📅 *Appointment Notification*\n`;
+          msg += `Baby Scan Fetal Medicine & Gynec Imaging\n\n`;
+          msg += `Dear ${patient},\n`;
+          msg += `Your appointment for *${scan}* is confirmed on *${dateDisplay}* at *${timeStr}*.\n`;
+      if (arrive !== timeStr) {
+          msg += `Please arrive by *${arrive}*.\n`;
+      }
+      if (advance > 0) {
+        const fmtAdv = advance.toLocaleString('en-IN');
+          msg += `\n💰 Advance paid: ₹${fmtAdv}${mode ? ' (' + mode + ')' : ''}\n`;
+      }
+          msg += `\nThank you 🙏\nBaby Scan, Mehsana`;
+
+      window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
+    }
+
+    // Mirrors FormF_Receipt._patient_arrival_time rules
+    function patientArrivalTime(timeStr) {
+      const AS_IS    = new Set(['8:30 AM', '9:00 AM', '12:30 PM',
+                                '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM', '3:00 PM']);
+      const MINUS_45 = new Set(['4:30 PM']);
+      if (!timeStr || AS_IS.has(timeStr)) return timeStr;
+      const parts = timeStr.split(' ');
+      if (parts.length < 2) return timeStr;
+      const [tp, ampm] = parts;
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      const shift = MINUS_45.has(timeStr) ? 45 : 30;
+      let total = h * 60 + m - shift;
+      const rh  = Math.floor(total / 60);
+      const rm  = total % 60;
+      const rap = rh >= 12 ? 'PM' : 'AM';
+      let rh12  = rh % 12;
+      if (rh12 === 0) rh12 = 12;
+      return `${rh12}:${pad(rm)} ${rap}`;
     }
 
     // ── Swipe gestures ─────────────────────────────────────────────────────
