@@ -82,6 +82,24 @@
             class="flex-1 bg-gray-200 text-gray-700 text-sm font-semibold py-2 rounded-lg active:bg-gray-300">
       🔄 Refresh
     </button>
+    <button onclick="openBlockSheet()"
+            class="flex-1 bg-orange-500 text-white text-sm font-semibold py-2 rounded-lg active:bg-orange-600">
+      🚫 Block
+    </button>
+  </div>
+
+  <!-- ── Block banner (shown when a block exists for the selected date) ────── -->
+  <div id="blockBanner" class="hidden px-3 pt-3">
+    <div class="bg-orange-100 border border-orange-300 rounded-2xl px-4 py-3 flex items-center justify-between">
+      <div>
+        <div id="blockBannerTitle" class="text-sm font-bold text-orange-700">⚠ Clinic Blocked</div>
+        <div id="blockBannerSub"   class="text-xs text-orange-500 mt-0.5"></div>
+      </div>
+      <button onclick="removeBlock()"
+              class="bg-orange-500 text-white text-xs px-3 py-2 rounded-xl font-bold active:bg-orange-700">
+        Remove
+      </button>
+    </div>
   </div>
 
   <!-- ── Slots list ────────────────────────────────────────────────────────── -->
@@ -92,7 +110,101 @@
 
   <!-- ── Modal backdrop ───────────────────────────────────────────────────── -->
   <div id="backdrop" class="fixed inset-0 bg-black bg-opacity-40 z-40 hidden"
-       onclick="closeModal()"></div>
+       onclick="closeAnySheet()"></div>
+
+  <!-- ── Block Time bottom sheet ──────────────────────────────────────────── -->
+  <div id="blockSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+
+    <!-- Sheet header -->
+    <div class="bg-orange-500 rounded-t-2xl px-5 py-4 flex justify-between items-center">
+      <div>
+        <div class="text-white font-bold text-lg">🚫 Block Time</div>
+        <div class="text-orange-100 text-xs mt-0.5">Mark slots as unavailable</div>
+      </div>
+      <button onclick="closeBlockSheet()"
+              class="w-8 h-8 bg-orange-700 rounded-full flex items-center justify-center text-white font-bold active:bg-orange-900">
+        ✕
+      </button>
+    </div>
+
+    <div class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height:70vh;">
+      <div class="space-y-4">
+
+        <!-- Quick presets -->
+        <div>
+          <div class="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wide">Quick Preset</div>
+          <div class="flex gap-2">
+            <button id="presetMorning"   onclick="setBlockPreset('morning')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-sm font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              🌅 Morning
+            </button>
+            <button id="presetAfternoon" onclick="setBlockPreset('afternoon')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-sm font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              🌆 Afternoon
+            </button>
+            <button id="presetFullDay"   onclick="setBlockPreset('fullday')"
+                    class="flex-1 border-2 border-gray-200 text-gray-500 text-sm font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors">
+              📅 Full Day
+            </button>
+          </div>
+        </div>
+
+        <!-- Date -->
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Date</label>
+          <input id="b_date" type="date"
+                 onchange="updateBlockConfirm()"
+                 class="w-full border-2 border-orange-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50">
+        </div>
+
+        <!-- Start / End time -->
+        <div class="flex gap-3">
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Start Time</label>
+            <select id="b_start" onchange="updateBlockConfirm()"
+                    class="w-full border-2 border-orange-200 rounded-xl px-3 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50">
+            </select>
+          </div>
+          <div class="flex-1">
+            <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">End Time</label>
+            <select id="b_end" onchange="updateBlockConfirm()"
+                    class="w-full border-2 border-orange-200 rounded-xl px-3 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-orange-50">
+            </select>
+          </div>
+        </div>
+
+        <!-- Reason -->
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Reason (optional)</label>
+          <input id="b_reason" type="text" placeholder="e.g. Doctor unavailable, Equipment maintenance"
+                 oninput="updateBlockConfirm()"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50">
+        </div>
+
+        <!-- Confirmation line -->
+        <div id="blockConfirmLine"
+             class="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-sm text-orange-700 font-semibold text-center hidden">
+        </div>
+
+        <!-- Status -->
+        <div id="blockStatus" class="hidden rounded-xl px-4 py-3 text-sm font-semibold text-center"></div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-1">
+          <button id="blockSaveBtn" onclick="saveBlock()"
+                  class="flex-1 bg-orange-500 text-white py-3.5 rounded-xl font-bold text-base active:bg-orange-600">
+            🚫 Confirm Block
+          </button>
+          <button onclick="closeBlockSheet()"
+                  class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
+            Cancel
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- ── Bottom-sheet appointment form ────────────────────────────────────── -->
   <div id="sheet"
@@ -290,6 +402,7 @@
     let cache        = {};               // YYYY-MM-DD → { slotStr: eventObj }
     let editingId    = null;             // GCal event ID being edited (null = new)
     let currentSlot  = null;
+    let blockCache   = {};               // YYYY-MM-DD → [{id, startMins, endMins, reason}]
 
     // ── Boot ───────────────────────────────────────────────────────────────
     window.addEventListener('load', () => {
@@ -402,14 +515,29 @@
 
         const data   = await apiFetch(url);
         const parsed = {};
+        const blocks = [];
 
         for (const ev of (data.items || [])) {
           const st = ev.start?.dateTime;
           if (!st) continue;
+
+          // ── Detect BLOCKED events ──────────────────────────────────────
+          const summ = ev.summary || '';
+          if (summ.startsWith('🚫 BLOCKED')) {
+            const reason = summ.includes(' — ') ? summ.split(' — ').slice(1).join(' — ') : '';
+            const endT   = ev.end?.dateTime || st;
+            blocks.push({
+              id        : ev.id,
+              startMins : isoToMins(st),
+              endMins   : isoToMins(endT),
+              reason    : reason,
+            });
+            continue;  // don't render as appointment slot
+          }
+
           const timeStr = isoToSlot(st);
 
           // Parse summary: "🏥 PatientName — ScanDescription"
-          const summ     = ev.summary || '';
           const stripped = summ.replace(/^🏥\s*/, '');
           const dashPos  = stripped.indexOf(' — ');
           const patient  = dashPos >= 0 ? stripped.slice(0, dashPos) : stripped;
@@ -444,7 +572,8 @@
           };
         }
 
-        cache[selectedDate] = parsed;
+        cache[selectedDate]      = parsed;
+        blockCache[selectedDate] = blocks;
         renderSlots(parsed);
       } catch (e) {
         toast('Failed to load: ' + e.message, 'red');
@@ -457,15 +586,48 @@
       const wrap = document.getElementById('slotsWrap');
       document.getElementById('loadingRow').style.display = 'none';
 
-      const nowIST    = nowInIST();
-      const isToday_  = (selectedDate === isoToday());
+      const nowIST   = nowInIST();
+      const isToday_ = (selectedDate === isoToday());
+      const blocks   = blockCache[selectedDate] || [];
       const fragments = [];
 
-      for (const slot of SLOTS) {
-        const ev     = events[slot];
-        const isPast = isToday_ && slotPast(slot, nowIST);
+      // ── Update block banner ──────────────────────────────────────────────
+      const banner = document.getElementById('blockBanner');
+      if (blocks.length > 0) {
+        const b       = blocks[0];
+        const startFmt = minsToTimeStr(b.startMins);
+        const endFmt   = minsToTimeStr(b.endMins);
+        document.getElementById('blockBannerTitle').textContent =
+          `⚠ Blocked ${startFmt} – ${endFmt}`;
+        document.getElementById('blockBannerSub').textContent =
+          b.reason ? b.reason : 'Clinic unavailable';
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
 
-        if (ev) {
+      // ── Render each slot ─────────────────────────────────────────────────
+      for (const slot of SLOTS) {
+        const ev        = events[slot];
+        const isPast    = isToday_ && slotPast(slot, nowIST);
+        const slotMins  = slotToMins(slot);
+
+        // Check if this slot falls inside any block window
+        const blockHit  = blocks.find(b => slotMins >= b.startMins && slotMins < b.endMins);
+
+        if (blockHit) {
+          // Blocked slot — orange, non-tappable
+          const reason = blockHit.reason || 'Clinic unavailable';
+          fragments.push(`
+            <div class="slot-card bg-orange-400 rounded-2xl p-4 fade-in opacity-90">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-white font-bold text-sm">${slot}</span>
+                <span class="bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full">Blocked</span>
+              </div>
+              <div class="text-white font-semibold text-base leading-tight">🚫 Unavailable</div>
+              <div class="text-orange-100 text-sm mt-0.5">${esc(reason)}</div>
+            </div>`);
+        } else if (ev) {
           fragments.push(`
             <div class="slot-card bg-red-500 rounded-2xl p-4 shadow-sm cursor-pointer fade-in"
                  onclick="openView('${slot}')">
@@ -475,8 +637,8 @@
               </div>
               <div class="text-white font-semibold text-base leading-tight">${esc(ev.patient)}</div>
               <div class="text-red-100 text-sm mt-0.5">${esc(ev.scan)}</div>
-              ${ev.doctor   ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
-              ${ev.phone    ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
+              ${ev.doctor  ? `<div class="text-red-200 text-xs mt-0.5">Dr. ${esc(ev.doctor)}</div>` : ''}
+              ${ev.phone   ? `<div class="text-red-200 text-xs">📱 ${esc(ev.phone)}</div>` : ''}
               ${ev.advance > 0 ? `<div class="text-red-100 text-xs font-semibold mt-0.5">💰 ₹${ev.advance.toLocaleString('en-IN')} ${esc(ev.mode)}</div>` : ''}
             </div>`);
         } else if (isPast) {
@@ -521,6 +683,7 @@
 
     function doRefresh() {
       delete cache[selectedDate];
+      delete blockCache[selectedDate];
       loadSlots(true);
     }
 
@@ -642,6 +805,7 @@
     function closeModal() {
       document.getElementById('backdrop').classList.add('hidden');
       document.getElementById('sheet').classList.replace('translate-y-0', 'translate-y-full');
+      document.getElementById('blockSheet').classList.replace('translate-y-0', 'translate-y-full');
     }
 
     // ── Save ───────────────────────────────────────────────────────────────
@@ -924,6 +1088,212 @@
       let rh12  = rh % 12;
       if (rh12 === 0) rh12 = 12;
       return `${rh12}:${pad(rm)} ${rap}`;
+    }
+
+    // ── Sheet helpers (handle both appointment sheet and block sheet) ──────
+    function closeAnySheet() {
+      closeModal();
+      closeBlockSheet();
+    }
+
+    // ── Block Time sheet ───────────────────────────────────────────────────
+    const BLOCK_TIMES = [
+      '6:00 AM','6:30 AM','7:00 AM','7:30 AM',
+      '8:00 AM','8:30 AM','9:00 AM','9:30 AM','10:00 AM','10:30 AM',
+      '11:00 AM','11:30 AM','12:00 PM','12:30 PM',
+      '1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM',
+      '4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM',
+      '7:00 PM','7:30 PM','8:00 PM','8:30 PM','9:00 PM',
+    ];
+
+    function fillBlockTimeSelects() {
+      ['b_start','b_end'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel.options.length > 1) return;  // already filled
+        BLOCK_TIMES.forEach(t => {
+          const o = document.createElement('option');
+          o.value = t; o.textContent = t;
+          sel.appendChild(o);
+        });
+      });
+    }
+
+    function openBlockSheet() {
+      if (!tokenValid()) { toast('Connect Google Calendar first', 'red'); return; }
+      fillBlockTimeSelects();
+
+      // Pre-fill date with currently viewed date
+      document.getElementById('b_date').value   = selectedDate;
+      document.getElementById('b_reason').value = '';
+      document.getElementById('blockStatus').classList.add('hidden');
+
+      // Default to full-day preset
+      setBlockPreset('fullday');
+
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('blockSheet').classList.replace('translate-y-full','translate-y-0');
+    }
+
+    function closeBlockSheet() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('blockSheet').classList.replace('translate-y-0','translate-y-full');
+    }
+
+    function setBlockPreset(type) {
+      // Highlight active preset button
+      ['presetMorning','presetAfternoon','presetFullDay'].forEach(id => {
+        document.getElementById(id).className =
+          'flex-1 border-2 border-gray-200 text-gray-500 text-sm font-bold py-2.5 rounded-xl active:bg-orange-50 transition-colors';
+      });
+      const activeClass =
+        'flex-1 border-2 border-orange-400 bg-orange-50 text-orange-700 text-sm font-bold py-2.5 rounded-xl transition-colors';
+
+      if (type === 'morning') {
+        document.getElementById('presetMorning').className = activeClass;
+        document.getElementById('b_start').value = '8:00 AM';
+        document.getElementById('b_end').value   = '1:00 PM';
+      } else if (type === 'afternoon') {
+        document.getElementById('presetAfternoon').className = activeClass;
+        document.getElementById('b_start').value = '1:00 PM';
+        document.getElementById('b_end').value   = '8:00 PM';
+      } else {
+        document.getElementById('presetFullDay').className = activeClass;
+        document.getElementById('b_start').value = '8:00 AM';
+        document.getElementById('b_end').value   = '8:00 PM';
+      }
+      updateBlockConfirm();
+    }
+
+    function updateBlockConfirm() {
+      const dateVal  = document.getElementById('b_date').value;
+      const startVal = document.getElementById('b_start').value;
+      const endVal   = document.getElementById('b_end').value;
+      const line     = document.getElementById('blockConfirmLine');
+
+      if (!dateVal || !startVal || !endVal) { line.classList.add('hidden'); return; }
+
+      const d      = new Date(dateVal + 'T12:00:00');
+      const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const label  = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+
+      line.textContent = `⚠ Block ${label} · ${startVal} – ${endVal}`;
+      line.classList.remove('hidden');
+    }
+
+    async function saveBlock() {
+      const dateISO  = document.getElementById('b_date').value;
+      const startStr = document.getElementById('b_start').value;
+      const endStr   = document.getElementById('b_end').value;
+      const reason   = document.getElementById('b_reason').value.trim();
+
+      if (!dateISO)  { showBlockStatus('Please select a date', 'red');  return; }
+      if (!startStr) { showBlockStatus('Please select a start time', 'red'); return; }
+      if (!endStr)   { showBlockStatus('Please select an end time', 'red');  return; }
+
+      if (slotToMins(startStr) >= slotToMins(endStr)) {
+        showBlockStatus('End time must be after start time', 'red'); return;
+      }
+
+      const btn = document.getElementById('blockSaveBtn');
+      btn.textContent = '⏳ Saving…';
+      btn.disabled    = true;
+
+      try {
+        const startISO = slotToISO(dateISO, startStr);
+        const endISO   = slotToISO(dateISO, endStr);
+        const summary  = reason ? `🚫 BLOCKED — ${reason}` : '🚫 BLOCKED';
+
+        const body = {
+          summary,
+          description : `Blocked via Baby Scan App\nReason: ${reason || 'Unspecified'}`,
+          start       : { dateTime: startISO, timeZone: TZ },
+          end         : { dateTime: endISO,   timeZone: TZ },
+          colorId     : '6',   // Tangerine / orange
+          reminders   : { useDefault: false, overrides: [] },
+        };
+
+        await apiFetch(
+          'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+          { method: 'POST', body: JSON.stringify(body) }
+        );
+
+        delete cache[dateISO];
+        delete blockCache[dateISO];
+        closeBlockSheet();
+        toast('🚫 Time blocked successfully', 'green');
+        if (dateISO === selectedDate) await loadSlots();
+
+      } catch (e) {
+        showBlockStatus('Error: ' + e.message, 'red');
+      } finally {
+        btn.textContent = '🚫 Confirm Block';
+        btn.disabled    = false;
+      }
+    }
+
+    async function removeBlock() {
+      const blocks = blockCache[selectedDate] || [];
+      if (blocks.length === 0) return;
+      if (!confirm('Remove this block and make slots available again?')) return;
+
+      try {
+        // Delete all block events for this date
+        for (const b of blocks) {
+          await apiFetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${b.id}`,
+            { method: 'DELETE' }
+          );
+        }
+        delete cache[selectedDate];
+        delete blockCache[selectedDate];
+        toast('✅ Block removed', 'green');
+        await loadSlots();
+      } catch (e) {
+        toast('Remove failed: ' + e.message, 'red');
+      }
+    }
+
+    function showBlockStatus(msg, color) {
+      const el = document.getElementById('blockStatus');
+      el.textContent      = msg;
+      el.style.background = color === 'green' ? '#D1FAE5' : '#FEE2E2';
+      el.style.color      = color === 'green' ? '#065F46' : '#991B1B';
+      el.classList.remove('hidden');
+    }
+
+    // ── Extra time helpers for block feature ──────────────────────────────
+    function slotToMins(timeStr) {
+      if (!timeStr) return 0;
+      const [tp, ampm] = timeStr.split(' ');
+      let [h, m] = tp.split(':').map(Number);
+      if (ampm === 'PM' && h !== 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    }
+
+    function isoToMins(isoStr) {
+      // Convert ISO datetime string to minutes since midnight (IST)
+      let h, m;
+      if (isoStr.endsWith('Z')) {
+        const d = new Date(isoStr);
+        const ist = new Date(d.getTime() + 5.5 * 3600000);
+        h = ist.getUTCHours(); m = ist.getUTCMinutes();
+      } else {
+        const tp = isoStr.slice(11, 16);
+        [h, m] = tp.split(':').map(Number);
+      }
+      return h * 60 + m;
+    }
+
+    function minsToTimeStr(mins) {
+      // Convert minutes-since-midnight to "9:00 AM" format
+      let h = Math.floor(mins / 60);
+      const m  = mins % 60;
+      const ap = h >= 12 ? 'PM' : 'AM';
+      if (h > 12) h -= 12;
+      if (h === 0) h = 12;
+      return `${h}:${pad(m)} ${ap}`;
     }
 
     // ── Swipe gestures ─────────────────────────────────────────────────────
