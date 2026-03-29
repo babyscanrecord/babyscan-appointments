@@ -1043,18 +1043,18 @@
       const yr   = d.getFullYear();
       const dateFmt = `${dd}-${mon}-${yr}`;
 
-      let msg  = `\u{1F3E5} *Baby Scan Fetal Medicine and Gynec Imaging*\n`;
+      let msg  = `🏥 *Baby Scan Fetal Medicine and Gynec Imaging*\n`;
           msg += `Rameshwar Complex, Dairy Road, Radhanpur Circle, Mehsana\n`;
-          msg += `\u{1F4DE} 9537222217\n`;
+          msg += `📞 9537222217\n`;
           msg += `\n`;
-          msg += `\u{1F464} Patient: *${patient}*\n`;
-          msg += `\u{1F4C5} Date: ${dateFmt}\n`;
-          msg += `\u{1F476} Scan: ${scan}\n`;
-          msg += `\u{1F4C5} Appointment: *${dateFmt} | ${arrive}*\n`;
+          msg += `👤 Patient: *${patient}*\n`;
+          msg += `📅 Date: ${dateFmt}\n`;
+          msg += `👶 Scan: ${scan}\n`;
+          msg += `📅 Appointment: *${dateFmt} | ${arrive}*\n`;
       if (advance > 0) {
         const fmtAdv = advance.toLocaleString('en-IN');
-          msg += `\n\u{1F4B0} Amount Paid: *\u20B9${fmtAdv}*\n`;
-          msg += `\u{1F4B3} Payment Mode: ${mode}\n`;
+          msg += `\n💰 Amount Paid: *₹${fmtAdv}*\n`;
+          msg += `💳 Payment Mode: ${mode}\n`;
       }
           msg += `\n`;
           msg += `According to Baby's Position sonography may take 3 to 4 hours.\n`;
@@ -1063,7 +1063,7 @@
           msg += `સોનોગ્રાફીમાં બાળકની પોઝિશન પ્રમાણે 3 થી 4 કલાકનો ટાઈમ લાગી શકે છે.\n`;
           msg += `સોનોગ્રાફી માટે ભૂખ્યા પેટે આવવાની જરૂર નથી.\n`;
           msg += `\n`;
-          msg += `Thanks for visiting exclusive fetal medicine center in North Gujarat \u{1F64F}`;
+          msg += `Thanks for visiting exclusive fetal medicine center in North Gujarat 🙏`;
 
       window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
     }
