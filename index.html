@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Fetal Scan Checklist</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; }
+
+/* ── Sticky wrapper (header + stats + pending) ── */
+.sticky-top {
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+
+/* ── App Header ── */
+.app-header {
+  background: #1a5f9e; color: white;
+  padding: 10px 12px 0;
+}
+.header-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.app-title { font-size: 1rem; font-weight: 700; flex: 1; }
+.patient-pill {
+  background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.5);
+  color: white; border-radius: 20px; padding: 5px 12px;
+  font-size: .78rem; font-weight: 600; cursor: pointer;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+}
+.patient-pill:active { background: rgba(255,255,255,.35); }
+.btn-new-pat {
+  background: rgba(255,255,255,.2); border: 1.5px solid rgba(255,255,255,.5);
+  color: white; border-radius: 20px; padding: 5px 11px;
+  font-size: 1.05rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  line-height: 1; display: flex; align-items: center;
+}
+.btn-new-pat:active { background: rgba(255,255,255,.4); }
+.tab-bar { display: flex; gap: 4px; }
+.tab.hidden { display: none; }
+.tab {
+  flex: 1; padding: 9px 6px; border: none;
+  background: rgba(255,255,255,.15); color: rgba(255,255,255,.8);
+  font-size: .82rem; font-weight: 600; border-radius: 8px 8px 0 0;
+  cursor: pointer; transition: background .2s, color .2s;
+}
+.tab.active { background: #fff; color: #1a5f9e; }
+
+/* ── Stats bar ── */
+.stats-bar {
+  background: white; display: flex; align-items: center;
+  padding: 8px 12px; gap: 10px; border-bottom: 1px solid #dde3ea; flex-wrap: wrap;
+}
+.stat { display: flex; flex-direction: column; align-items: center; min-width: 36px; }
+.stat-num { font-size: 1.3rem; font-weight: 800; line-height: 1; }
+.stat-label { font-size: .6rem; color: #777; text-transform: uppercase; letter-spacing: .5px; }
+.stat-num.done { color: #22a06b; }
+.stat-num.pending-num { color: #d04a02; }
+.stat-num.total { color: #1a5f9e; }
+.progress-wrap { flex: 1; min-width: 80px; }
+.progress-bar { height: 7px; background: #e0e7ef; border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg,#22a06b,#52c41a); border-radius: 4px; transition: width .4s ease; }
+.progress-pct { font-size: .65rem; color: #555; margin-top: 3px; text-align: right; }
+.btn-mic {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 2.5px solid #1a5f9e; background: white;
+  font-size: 1.2rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background .2s;
+}
+.btn-mic.listening { background: #ff3b30; border-color: #ff3b30; animation: pulse 1s infinite; }
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,59,48,.4); }
+  50% { box-shadow: 0 0 0 9px rgba(255,59,48,0); }
+}
+
+/* ── Pending strip ── */
+.pending-strip {
+  background: #fff;
+  border-bottom: 2px solid #e0e7ef;
+  padding: 8px 12px 10px; display: none;
+}
+.pending-strip.show { display: block; }
+.pending-strip-title {
+  font-size: .7rem; font-weight: 700; color: #999;
+  text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px;
+}
+.pending-section {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-bottom: 5px; flex-wrap: wrap;
+}
+.pending-sec-label {
+  font-size: .68rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .5px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.pending-sec-items {
+  font-size: .73rem; font-weight: 500; line-height: 1.5;
+}
+
+/* ── Scan panels ── */
+.scan-panel { display: none; padding: 8px 12px 80px; }
+.scan-panel.active { display: block; }
+
+/* ── Category card ── */
+.category { background: white; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+.cat-header {
+  background: #1a5f9e; color: white;
+  padding: 0 12px; height: 44px;
+  font-size: .78rem; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 8px;
+}
+.cat-title { flex: 1; }
+.cat-badge {
+  background: rgba(255,255,255,.25); border-radius: 10px;
+  padding: 2px 8px; font-size: .68rem; white-space: nowrap;
+}
+.cat-badge.all-done { background: #22a06b; }
+.btn-check-all {
+  background: rgba(255,255,255,.18); border: 1.5px solid rgba(255,255,255,.5);
+  color: white; border-radius: 8px; padding: 5px 10px;
+  font-size: .68rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+  transition: background .15s; flex-shrink: 0;
+}
+.btn-check-all:active { background: rgba(255,255,255,.4); }
+
+.items-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 1px; background: #e8edf3;
+}
+.item-btn {
+  background: white; border: none; padding: 13px 8px;
+  cursor: pointer; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 68px; justify-content: center;
+}
+.item-btn:active { background: #f0f4ff; }
+.item-btn.checked { background: #f0fff8; }
+.item-btn.checked .item-label { color: #22a06b; text-decoration: line-through; opacity: .7; }
+.check-icon {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2.5px solid #c0cad8;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: transparent; transition: all .2s; flex-shrink: 0;
+}
+.item-btn.checked .check-icon { background: #22a06b; border-color: #22a06b; color: white; }
+.item-label { font-size: .72rem; font-weight: 600; text-align: center; color: #2d3a4a; line-height: 1.3; }
+.label-toggle {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; background: #e8edf3; border-radius: 6px;
+  margin-top: 4px; overflow: hidden; width: 90%;
+}
+.label-toggle-opt {
+  flex: 1; font-size: .62rem; font-weight: 700; padding: 3px 4px;
+  text-align: center; color: #777; cursor: pointer;
+  transition: background .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.label-toggle-opt.active { background: #1a5f9e; color: #fff; border-radius: 5px; }
+.label-toggle-opt.active.sua { background: #e74c3c; }
+.item-btn.sua-selected { background: #fff5f5; }
+.item-btn.sua-selected .item-label { color: #e74c3c; font-weight: 800; }
+.item-btn.sua-selected .check-icon { border-color: #e74c3c; }
+.item-btn.sua-selected.checked .check-icon { background: #e74c3c; border-color: #e74c3c; }
+
+/* ── SUA alert banner (sticky top) ── */
+.sua-alert {
+  display: none; background: #e74c3c; color: #fff;
+  padding: 7px 14px; font-size: .8rem; font-weight: 700;
+  letter-spacing: .4px; align-items: center; gap: 8px;
+}
+.sua-alert.show { display: flex; }
+.sua-alert-icon { font-size: 1.1rem; }
+.sua-alert-text { flex: 1; }
+.item-input {
+  width: 90%; margin-top: 4px;
+  border: 1.5px solid #c0cad8; border-radius: 6px;
+  padding: 4px 6px; font-size: .7rem; text-align: center;
+  background: #f8fafc; color: #2d3a4a; outline: none;
+}
+.item-input:focus { border-color: #1a5f9e; background: #fff; }
+.item-btn.checked .item-input { border-color: #a8dfc4; background: #f0fff8; color: #22a06b; }
+
+/* Category colours */
+.cat-header.brain  { background: #7b52c4; }
+.cat-header.heart  { background: #c0392b; }
+.cat-header.face   { background: #e67e22; }
+.cat-header.spine  { background: #27ae60; }
+.cat-header.limbs  { background: #16a085; }
+.cat-header.abdomen{ background: #2980b9; }
+.cat-header.survey { background: #8e44ad; }
+.cat-header.head   { background: #7b52c4; }
+.cat-header.midline    { background: #34495e; }
+.cat-header.echo-gen   { background: #0e7490; }
+.cat-header.echo-cardiac { background: #9b1c1c; }
+/* Colour-Doppler items get a subtle blue tint */
+.item-btn.cdoppler { background: #f0f8ff; }
+.item-btn.cdoppler .item-label { color: #1e40af; }
+.item-btn.cdoppler .check-icon { border-color: #93c5fd; }
+.item-btn.cdoppler.checked { background: #e0f2fe; }
+.item-btn.cdoppler.checked .check-icon { background: #2563eb; border-color: #2563eb; }
+.item-btn.cdoppler.checked .item-label { color: #2563eb; }
+
+/* ── All-done banner ── */
+.all-done-banner { display: none; text-align: center; padding: 28px 20px; color: #22a06b; font-size: 1.1rem; font-weight: 700; }
+.all-done-banner.show { display: block; }
+.all-done-banner .big { font-size: 2.8rem; }
+
+/* ── Voice toast ── */
+.voice-toast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.82); color: white; border-radius: 24px;
+  padding: 10px 20px; font-size: .85rem; font-weight: 600;
+  white-space: nowrap; z-index: 999; opacity: 0; transition: opacity .3s;
+  pointer-events: none; max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+}
+.voice-toast.show { opacity: 1; }
+.voice-toast.matched { background: #22a06b; }
+.voice-toast.unmatched { background: #c0392b; }
+.voice-toast.multi { background: #1a5f9e; }
+
+/* ── Patient Manager Panel ── */
+.pm-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 500;
+}
+.pm-overlay.show { display: block; }
+.pm-panel {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: white; border-radius: 20px 20px 0 0;
+  padding: 0 0 30px; z-index: 501;
+  max-height: 80vh; display: flex; flex-direction: column;
+  transform: translateY(100%); transition: transform .3s ease;
+}
+.pm-panel.show { transform: translateY(0); }
+.pm-handle { width: 40px; height: 4px; background: #ddd; border-radius: 2px; margin: 12px auto 0; }
+.pm-title {
+  font-size: 1rem; font-weight: 700; color: #1a5f9e;
+  padding: 12px 16px 10px; border-bottom: 1px solid #eee;
+}
+.pm-list { overflow-y: auto; flex: 1; padding: 8px 12px; }
+.pm-patient {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 10px; border-radius: 10px;
+  border: 2px solid transparent; margin-bottom: 6px;
+  background: #f8f9fb; transition: border-color .15s, background .15s;
+}
+.pm-patient.active-patient { border-color: #1a5f9e; background: #f0f6ff; }
+.pm-pat-info { flex: 1; min-width: 0; cursor: pointer; }
+.pm-pat-info:active { opacity: .75; }
+/* pm-pat-info handled above */
+.pm-pat-name { font-weight: 700; font-size: .9rem; color: #2d3a4a; }
+.pm-pat-meta { font-size: .72rem; color: #777; margin-top: 2px; }
+.pm-pat-progress {
+  background: #e0e7ef; border-radius: 10px; height: 6px; width: 70px; overflow: hidden; margin-top: 5px;
+}
+.pm-pat-fill { height: 100%; background: #22a06b; border-radius: 10px; }
+.pm-pat-pct { font-size: .68rem; color: #22a06b; font-weight: 700; margin-top: 2px; }
+.pm-resume-btn {
+  background: #1a5f9e; color: white; border: none;
+  border-radius: 8px; padding: 7px 12px; font-size: .75rem; font-weight: 700; cursor: pointer;
+}
+.pm-delete-btn {
+  background: none; border: none; color: #c0392b; font-size: 1.1rem; cursor: pointer;
+  padding: 4px 6px; border-radius: 6px;
+}
+.pm-delete-btn:active { background: #fff0f0; }
+.pm-edit-btn {
+  background: none; border: none; color: #1a5f9e; font-size: 1rem; cursor: pointer;
+  padding: 4px 6px; border-radius: 6px;
+}
+.pm-edit-btn:active { background: #e8f0fb; }
+.pm-actions { padding: 10px 12px 0; display: flex; gap: 8px; }
+.pm-new-btn {
+  flex: 1; background: #22a06b; color: white; border: none;
+  border-radius: 10px; padding: 13px; font-size: .9rem; font-weight: 700; cursor: pointer;
+}
+.pm-new-btn:active { opacity: .85; }
+.pm-close-btn {
+  background: #f0f4f8; color: #555; border: none;
+  border-radius: 10px; padding: 13px 18px; font-size: .9rem; font-weight: 600; cursor: pointer;
+}
+
+/* ── Name input modal ── */
+.name-modal-bg {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 600;
+  align-items: center; justify-content: center;
+}
+.name-modal-bg.show { display: flex; }
+.name-modal {
+  background: white; border-radius: 16px; padding: 24px 20px;
+  width: min(340px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,.2);
+}
+.name-modal h3 { font-size: 1rem; color: #1a5f9e; margin-bottom: 14px; }
+.name-modal input {
+  width: 100%; border: 2px solid #dde3ea; border-radius: 8px;
+  padding: 10px 12px; font-size: .95rem; margin-bottom: 10px; outline: none;
+}
+.name-modal input:focus { border-color: #1a5f9e; }
+.scan-type-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.scan-type-btn {
+  flex: 1; padding: 9px 6px; border: 2px solid #dde3ea;
+  border-radius: 8px; background: white; font-weight: 600; font-size: .78rem; cursor: pointer;
+  position: relative; transition: border-color .15s, background .15s;
+}
+.scan-type-btn.selected {
+  border-color: #22a06b; background: #f0fff8; color: #22a06b;
+}
+.scan-type-btn.selected::after {
+  content: '✔';
+  position: absolute; top: 3px; right: 5px;
+  font-size: .65rem; color: #22a06b; font-weight: 900;
+}
+.scan-type-hint {
+  font-size: .68rem; margin-bottom: 12px; min-height: 14px;
+}
+.modal-btns { display: flex; gap: 8px; }
+.modal-ok {
+  flex: 1; background: #1a5f9e; color: white; border: none;
+  border-radius: 8px; padding: 11px; font-size: .9rem; font-weight: 700; cursor: pointer;
+}
+.modal-cancel {
+  background: #f0f4f8; color: #555; border: none;
+  border-radius: 8px; padding: 11px 16px; font-size: .9rem; cursor: pointer;
+}
+
+@media (max-width: 380px) {
+  .items-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); }
+  .item-btn { padding: 11px 5px; min-height: 60px; }
+  .item-label { font-size: .67rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- Sticky top: header + stats + pending strip -->
+<div class="sticky-top">
+
+  <!-- App Header -->
+  <div class="app-header">
+    <div class="header-top">
+      <div class="app-title">&#x1F4CB; Fetal Scan Checklist</div>
+      <div class="patient-pill" onclick="openPatientManager()" id="patient-pill">
+        &#x1F464; <span id="patient-name-display">Patient 1</span>
+      </div>
+      <button class="btn-new-pat" onclick="promptNewPatient()" title="New Patient">&#x2795;</button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab active" id="tab-nt" onclick="switchTab('nt')">NT SCAN</button>
+      <button class="tab" id="tab-target" onclick="switchTab('target')">TARGET SCAN</button>
+      <button class="tab" id="tab-echo" onclick="switchTab('echo')">ECHO</button>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-num done" id="cnt-done">0</div><div class="stat-label">Done</div></div>
+    <div class="stat"><div class="stat-num pending-num" id="cnt-pending">0</div><div class="stat-label">Left</div></div>
+    <div class="stat"><div class="stat-num total" id="cnt-total">0</div><div class="stat-label">Total</div></div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+      <div class="progress-pct" id="prog-pct">0%</div>
+    </div>
+    <span id="fb-status" style="font-size:.6rem;font-weight:700;color:#aaa;white-space:nowrap">○ Offline</span>
+    <button class="btn-mic" id="mic-btn" onclick="toggleVoice()" title="Voice commands">&#x1F3A4;</button>
+  </div>
+
+  <!-- SUA Alert banner -->
+  <div class="sua-alert" id="sua-alert">
+    <span class="sua-alert-icon">&#x26A0;&#xFE0F;</span>
+    <span class="sua-alert-text">SUA (Single Umbilical Artery) selected — document carefully</span>
+  </div>
+
+</div><!-- end sticky-top -->
+
+<!-- Pending strip (scrolls with page) -->
+<div class="pending-strip" id="pending-strip">
+  <div class="pending-strip-title">Still pending</div>
+  <div id="pending-list"></div>
+</div>
+
+<!-- ══════════════ NT SCAN PANEL ══════════════ -->
+<div class="scan-panel active" id="panel-nt">
+
+  <div class="category">
+    <div class="cat-header midline">
+      <span class="cat-title">MID LINE</span>
+      <span class="cat-badge" id="badge-nt-midline"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-midline')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-midline">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CRL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">NT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">NB</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">DV</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">IT</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header face">
+      <span class="cat-title">FACE</span>
+      <span class="cat-badge" id="badge-nt-face"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-face')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-face">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ORBIT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PMT</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header brain">
+      <span class="cat-title">BRAIN</span>
+      <span class="cat-badge" id="badge-nt-brain"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-brain')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-brain">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LV</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">AQUEDUCT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">BPD</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">OFD</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header heart">
+      <span class="cat-title">HEART</span>
+      <span class="cat-badge" id="badge-nt-heart"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-heart')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-heart">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Situs</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">4CH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARCH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">TR</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">HEART RATE</div><input class="item-input" type="number" placeholder="bpm" onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header spine">
+      <span class="cat-title">SPINE</span>
+      <span class="cat-badge" id="badge-nt-spine"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-spine')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-spine">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">SPINE</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">STOMACH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">SMALL BOWEL</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header abdomen">
+      <span class="cat-title">ABDOMEN</span>
+      <span class="cat-badge" id="badge-nt-abdomen"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-abdomen')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-abdomen">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">KIDNEY</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RENAL ARTERY</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">BLADDER</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">DIAPHRAGM</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">AC</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CORD INSERTION</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">3VC</div><div class="label-toggle" onclick="switchLabel(event,this)"><span class="label-toggle-opt active">3VC</span><span class="label-toggle-opt">SUA</span></div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header limbs">
+      <span class="cat-title">LIMBS</span>
+      <span class="cat-badge" id="badge-nt-limbs"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-limbs')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-limbs">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RIGHT UL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RIGHT OH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LEFT UL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LEFT OH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LOWER LIMBS</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FOOT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FL</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header survey">
+      <span class="cat-title">SURVEY &amp; DOPPLER</span>
+      <span class="cat-badge" id="badge-nt-survey"></span>
+      <button class="btn-check-all" onclick="toggleAll('nt-survey')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-nt-survey">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PLACENTA</div><input class="item-input" type="text" placeholder="position..." onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LIQUOR</div><input class="item-input" type="text" placeholder="cm / grade" onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Right Uterine</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Left Uterine</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Cervix</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Ovaries</div></button>
+    </div>
+  </div>
+
+  <div class="all-done-banner" id="done-nt">
+    <div class="big">&#x2705;</div>NT Scan Complete!
+  </div>
+</div>
+
+<!-- ══════════════ TARGET SCAN PANEL ══════════════ -->
+<div class="scan-panel" id="panel-target">
+
+  <div class="category">
+    <div class="cat-header head">
+      <span class="cat-title">HEAD</span>
+      <span class="cat-badge" id="badge-tg-head"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-head')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-head">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LV</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CSP</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">BPD</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">OFD</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">4th Ventricle</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Lateral Sulcus</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Cerebellum</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CM</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">NFT</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header heart">
+      <span class="cat-title">HEART</span>
+      <span class="cat-badge" id="badge-tg-heart"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-heart')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-heart">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Situs</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">4CH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Inflow</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LVOT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RVOT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARCH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PAS</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARSA</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LUNGS</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header face">
+      <span class="cat-title">FACE</span>
+      <span class="cat-badge" id="badge-tg-face"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-face')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-face">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Nose / Mouth</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Orbits</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PMT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Profile</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header spine">
+      <span class="cat-title">SPINE</span>
+      <span class="cat-badge" id="badge-tg-spine"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-spine')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-spine">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Sagittal</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Coronal</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Transverse</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Sag Kidney</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Tran Kidney</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Ears</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header limbs">
+      <span class="cat-title">LIMBS</span>
+      <span class="cat-badge" id="badge-tg-limbs"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-limbs')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-limbs">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RIGHT UL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RIGHT OH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LEFT UL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LEFT OH</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LOWER LIMBS</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FOOT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FL</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FOOT LENGTH</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header abdomen">
+      <span class="cat-title">ABDOMEN</span>
+      <span class="cat-badge" id="badge-tg-abdomen"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-abdomen')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-abdomen">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Stomach</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Urinary Bladder</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Small Bowel</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Large Bowel</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Diaphragm</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Coronal Kidney</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Renal Artery</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PAMC</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Gall Bladder</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CORD INSERTION</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">3VC</div><div class="label-toggle" onclick="switchLabel(event,this)"><span class="label-toggle-opt active">3VC</span><span class="label-toggle-opt">SUA</span></div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">AC</div></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header survey">
+      <span class="cat-title">SURVEY &amp; DOPPLER</span>
+      <span class="cat-badge" id="badge-tg-survey"></span>
+      <button class="btn-check-all" onclick="toggleAll('tg-survey')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-tg-survey">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PLACENTA</div><input class="item-input" type="text" placeholder="position..." onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LIQUOR</div><input class="item-input" type="text" placeholder="cm / grade" onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FETAL MOVEMENT</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">UMBILICAL PI</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">HEART RATE</div><input class="item-input" type="number" placeholder="bpm" onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Right Uterine</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Left Uterine</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">MCA</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Ductus Venosus</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Aortic Isthmus</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">CERVIX</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Cord Around Neck</div></button>
+    </div>
+  </div>
+
+  <div class="all-done-banner" id="done-target">
+    <div class="big">&#x2705;</div>Target Scan Complete!
+  </div>
+</div>
+
+<!-- ══════════════ ECHO PANEL ══════════════ -->
+<div class="scan-panel" id="panel-echo">
+
+  <div class="category">
+    <div class="cat-header echo-gen">
+      <span class="cat-title">GENERAL</span>
+      <span class="cat-badge" id="badge-echo-general"></span>
+      <button class="btn-check-all" onclick="toggleAll('echo-general')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-echo-general">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Situs</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LUNGS</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">DV</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">SVC</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">IVC</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">FHR</div><input class="item-input" type="number" placeholder="bpm" onclick="event.stopPropagation()" oninput="saveCurrentToStore()"></button>
+    </div>
+  </div>
+
+  <div class="category">
+    <div class="cat-header echo-cardiac">
+      <span class="cat-title">CARDIAC VIEWS</span>
+      <span class="cat-badge" id="badge-echo-cardiac"></span>
+      <button class="btn-check-all" onclick="toggleAll('echo-cardiac')">&#x2714; All</button>
+    </div>
+    <div class="items-grid" id="group-echo-cardiac">
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">4 Chamber</div></button>
+      <button class="item-btn cdoppler" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">Chamber-Color</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LVOT</div></button>
+      <button class="item-btn cdoppler" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">LVOT-Color</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RVOT</div></button>
+      <button class="item-btn cdoppler" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">RVOT-Color</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARCH</div></button>
+      <button class="item-btn cdoppler" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARCH-Color</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PAS</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">ARSA</div></button>
+      <button class="item-btn" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PV</div></button>
+      <button class="item-btn cdoppler" onclick="toggle(this)"><div class="check-icon">&#x2714;</div><div class="item-label">PV-Color</div></button>
+    </div>
+  </div>
+
+  <div class="all-done-banner" id="done-echo">
+    <div class="big">&#x2705;</div>Echo Scan Complete!
+  </div>
+</div>
+
+<!-- Voice toast -->
+<div class="voice-toast" id="voice-toast"></div>
+
+<!-- ══ Patient Manager Panel ══ -->
+<div class="pm-overlay" id="pm-overlay" onclick="closePMIfOutside(event)">
+  <div class="pm-panel" id="pm-panel">
+    <div class="pm-handle"></div>
+    <div class="pm-title" id="pm-title">&#x1F464; Patient List</div>
+    <div class="pm-list" id="pm-list"></div>
+    <div class="pm-actions">
+      <button class="pm-new-btn" onclick="promptNewPatient()">&#x2795; New Patient</button>
+      <button class="pm-close-btn" onclick="closePatientManager()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- New Patient Name Modal -->
+<div class="name-modal-bg" id="name-modal-bg">
+  <div class="name-modal">
+    <h3 id="patient-modal-title">&#x1F464; New Patient</h3>
+    <input type="text" id="new-patient-name" placeholder="Patient name (optional)" maxlength="30" />
+    <div class="scan-type-row">
+      <button class="scan-type-btn" id="st-nt" onclick="toggleScanType('nt')">NT SCAN</button>
+      <button class="scan-type-btn" id="st-target" onclick="toggleScanType('target')">TARGET SCAN</button>
+      <button class="scan-type-btn" id="st-echo" onclick="toggleScanType('echo')">ECHO</button>
+    </div>
+    <div class="scan-type-hint" id="scan-type-hint" style="color:#999">Tap to select scan type(s)</div>
+    <div class="modal-btns">
+      <button class="modal-ok" id="patient-modal-ok" onclick="confirmPatientModal()">Start Scan</button>
+      <button class="modal-cancel" onclick="cancelNewPatient()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+// ══════════════════════════════════════════
+//  FIREBASE SYNC
+// ══════════════════════════════════════════
+const FB_CONFIG = {
+  apiKey: "AIzaSyCHIB7ndKeqbUSCzCrgMnZcGB-FWqH6Fj0",
+  authDomain: "scan-checklist.firebaseapp.com",
+  projectId: "scan-checklist",
+  storageBucket: "scan-checklist.firebasestorage.app",
+  messagingSenderId: "440132593268",
+  appId: "1:440132593268:web:3cf83d9b0595a32c39d321"
+};
+
+let db = null, fbDoc = null, fbSaveTimer = null, fbReady = false, isRemoteUpdate = false;
+let _waitingForDefaultPatient = false; // defer Patient 1 creation until Firebase responds
+
+function setFbStatus(status) {
+  const el = document.getElementById('fb-status');
+  if (!el) return;
+  const map = {
+    connecting: ['⟳ Syncing',  '#f39c12'],
+    synced:     ['⚡ Synced',   '#22a06b'],
+    saving:     ['↑ Saving…',  '#1a5f9e'],
+    offline:    ['○ Offline',  '#aaa'],
+  };
+  const [text, color] = map[status] || map.offline;
+  el.textContent = text; el.style.color = color;
+}
+
+// Debounced save — only patients{} goes to Firebase; currentIds stays per-device
+let _fbSaveRetryTimer = null;
+function fbSave() {
+  if (!fbReady || isRemoteUpdate) return;
+  clearTimeout(fbSaveTimer);
+  clearTimeout(_fbSaveRetryTimer);
+  setFbStatus('saving');
+  fbSaveTimer = setTimeout(() => {
+    fbDoc.set({ patients })
+      .then(() => setFbStatus('synced'))
+      .catch(e => {
+        console.error('fbSave error:', e);
+        setFbStatus('offline');
+        // Retry save after 8 seconds so data isn't silently lost
+        _fbSaveRetryTimer = setTimeout(() => { if (fbReady) fbSave(); }, 8000);
+      });
+  }, 800);
+}
+
+function _applyRemotePatients(data) {
+  const hadPendingDefault = _waitingForDefaultPatient;
+  _waitingForDefaultPatient = false;
+
+  // Firebase has no data — nothing to load, UI will show "No Patient"
+  if (!data || !data.patients || Object.keys(data.patients).length === 0) {
+    return;
+  }
+
+  isRemoteUpdate = true;
+  patients = data.patients;
+  storage_set('sc_patients', patients);
+  // Migrate if needed
+  Object.values(patients).forEach(p => {
+    if (!p.scans) {
+      const st = p.scanType || 'nt';
+      p.scanTypes = [st];
+      p.scans = { [st]: { checked: p.checked||[], values: p.values||{}, toggles: p.toggles||{} } };
+      delete p.scanType; delete p.checked; delete p.values; delete p.toggles;
+    }
+  });
+
+  // Fix stale currentIds — remove any pointers to patients that no longer exist in Firebase
+  ['nt','target','echo'].forEach(s => {
+    if (currentIds[s] && !patients[currentIds[s]]) currentIds[s] = null;
+  });
+
+  // If the active scan has no valid patient, auto-select the most recently created one
+  if (!currentIds[currentScan]) {
+    const ids = Object.keys(patients).filter(id => _getScanTypes(patients[id]).includes(currentScan));
+    if (ids.length > 0) {
+      ids.sort((a, b) => (patients[b].created || 0) - (patients[a].created || 0));
+      currentIds[currentScan] = ids[0];
+    }
+  }
+  saveCurrentIdsStore(); // Persist corrected currentIds so next refresh is stable
+
+  // Refresh active panel
+  const activeId = currentIds[currentScan];
+  if (activeId && patients[activeId]) {
+    updateVisibleTabs(_getScanTypes(patients[activeId]));
+    _applyPatientPanel(activeId);
+  }
+  renderPatientHeader(); renderPMList(); updateStats();
+  isRemoteUpdate = false;
+}
+
+function initFirebase() {
+  try {
+    if (typeof firebase === 'undefined') {
+      console.error('Firebase SDK not loaded');
+      setFbStatus('offline');
+      return;
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    db = firebase.firestore();
+    fbDoc = db.collection('clinic').doc('main');
+    fbReady = true;
+    setFbStatus('connecting');
+    console.log('Firebase: connecting…');
+
+    // Timeout fallback — if onSnapshot doesn't respond in 10s, show offline
+    const connectTimeout = setTimeout(() => {
+      const el = document.getElementById('fb-status');
+      if (el && el.textContent.includes('Syncing')) {
+        console.warn('Firebase: connection timeout, retrying…');
+        setFbStatus('offline');
+        _waitingForDefaultPatient = false;
+        // Retry once after 5 seconds
+        setTimeout(initFirebase, 5000);
+      }
+    }, 10000);
+
+    // onSnapshot fires immediately with current cloud data, then on every change
+    fbDoc.onSnapshot(
+      snap => {
+        clearTimeout(connectTimeout);
+        console.log('Firebase: connected, data received');
+        _applyRemotePatients(snap.exists() ? snap.data() : null);
+        setFbStatus('synced');
+      },
+      err => {
+        clearTimeout(connectTimeout);
+        console.error('Firebase listener error:', err.code, err.message);
+        setFbStatus('offline');
+        // Retry after 8 seconds on error
+        setTimeout(initFirebase, 8000);
+      }
+    );
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    setFbStatus('offline');
+  }
+}
+
+// ══════════════════════════════════════════
+//  STORAGE (localStorage with in-memory fallback)
+// ══════════════════════════════════════════
+const mem = {};
+function storage_get(key) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+  catch(e) { return mem[key] || null; }
+}
+function storage_set(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); }
+  catch(e) { mem[key] = val; }
+}
+
+// ══════════════════════════════════════════
+//  SCAN / TAB CONFIG
+// ══════════════════════════════════════════
+const SCAN_CATS = {
+  nt:     ['nt-midline','nt-face','nt-brain','nt-heart','nt-spine','nt-abdomen','nt-limbs','nt-survey'],
+  target: ['tg-head','tg-heart','tg-face','tg-spine','tg-limbs','tg-abdomen','tg-survey'],
+  echo:   ['echo-general','echo-cardiac']
+};
+
+const CAT_META = {
+  'nt-midline': { name: 'Mid Line',        color: '#34495e' },
+  'nt-face':    { name: 'Face',            color: '#e67e22' },
+  'nt-brain':   { name: 'Brain',           color: '#7b52c4' },
+  'nt-heart':   { name: 'Heart',           color: '#c0392b' },
+  'nt-spine':   { name: 'Spine',           color: '#27ae60' },
+  'nt-abdomen': { name: 'Abdomen',         color: '#2980b9' },
+  'nt-limbs':   { name: 'Limbs',           color: '#16a085' },
+  'nt-survey':  { name: 'Survey/Doppler',  color: '#8e44ad' },
+  'tg-head':    { name: 'Head',            color: '#7b52c4' },
+  'tg-heart':   { name: 'Heart',           color: '#c0392b' },
+  'tg-face':    { name: 'Face',            color: '#e67e22' },
+  'tg-spine':   { name: 'Spine',           color: '#27ae60' },
+  'tg-limbs':   { name: 'Limbs',           color: '#16a085' },
+  'tg-abdomen': { name: 'Abdomen',         color: '#2980b9' },
+  'tg-survey':  { name: 'Survey/Doppler',  color: '#8e44ad' },
+  'echo-general': { name: 'General',       color: '#0e7490' },
+  'echo-cardiac': { name: 'Cardiac Views', color: '#9b1c1c' },
+};
+
+let currentScan = 'nt';
+
+function switchTab(scan, saveFirst) {
+  if (saveFirst !== false) saveCurrentToStore();
+  currentScan = scan;
+  document.getElementById('tab-nt').classList.toggle('active', scan === 'nt');
+  document.getElementById('tab-target').classList.toggle('active', scan === 'target');
+  document.getElementById('tab-echo').classList.toggle('active', scan === 'echo');
+  document.getElementById('panel-nt').classList.toggle('active', scan === 'nt');
+  document.getElementById('panel-target').classList.toggle('active', scan === 'target');
+  document.getElementById('panel-echo').classList.toggle('active', scan === 'echo');
+  const tabId = currentIds[scan];
+  if (tabId && patients[tabId]) { _applyPatientPanel(tabId); }
+  else { _clearPanel(scan); }
+  renderPatientHeader();
+  updateStats();
+}
+
+// ══════════════════════════════════════════
+//  PATIENT MANAGEMENT
+// ══════════════════════════════════════════
+let patients = {};
+let currentIds = { nt: null, target: null, echo: null };
+let newPatientScanTypes = new Set(['nt']);
+
+// ── helpers: get patient's scan-types array (handles old & new format) ──
+function _getScanTypes(p) { return p.scanTypes || (p.scanType ? [p.scanType] : ['nt']); }
+
+// Show only tabs relevant to the given scan types; pass null to show all
+function updateVisibleTabs(scanTypes) {
+  const visible = scanTypes || ['nt','target','echo'];
+  ['nt','target','echo'].forEach(s => {
+    document.getElementById('tab-' + s).classList.toggle('hidden', !visible.includes(s));
+  });
+}
+// Get scan data for a patient+scan combo
+function _getScanData(p, scan) {
+  if (p.scans && p.scans[scan]) return p.scans[scan];
+  // Legacy flat format (old patients before migration)
+  if (!p.scans && _getScanTypes(p)[0] === scan) return { checked: p.checked || [], values: p.values || {}, toggles: p.toggles || {} };
+  return { checked: [], values: {}, toggles: {} };
+}
+
+function _migrateAndApply(savedCurrentIds) {
+  // Migrate old single-scanType patients to new scans:{} format
+  let needsSave = false;
+  Object.values(patients).forEach(p => {
+    if (!p.scans) {
+      const st = p.scanType || 'nt';
+      p.scanTypes = [st];
+      p.scans = { [st]: { checked: p.checked || [], values: p.values || {}, toggles: p.toggles || {} } };
+      delete p.scanType; delete p.checked; delete p.values; delete p.toggles;
+      needsSave = true;
+    }
+  });
+  if (needsSave) storage_set('sc_patients', patients);
+
+  if (savedCurrentIds) {
+    currentIds = Object.assign({ nt: null, target: null, echo: null }, savedCurrentIds);
+  } else {
+    const oldId = storage_get('sc_currentId');
+    if (oldId && patients[oldId]) _getScanTypes(patients[oldId]).forEach(s => { currentIds[s] = oldId; });
+  }
+  // Clean up stale / mismatched IDs
+  ['nt','target','echo'].forEach(s => {
+    const id = currentIds[s];
+    if (id && (!patients[id] || !_getScanTypes(patients[id]).includes(s))) currentIds[s] = null;
+  });
+  if (currentIds.nt && patients[currentIds.nt]) {
+    updateVisibleTabs(_getScanTypes(patients[currentIds.nt]));
+    _applyPatientPanel(currentIds.nt);
+  } else if (Object.keys(patients).length > 0) {
+    // Local patients exist but currentId is stale — pick the most recent NT patient
+    const ids = Object.keys(patients).filter(id => _getScanTypes(patients[id]).includes('nt'));
+    if (ids.length > 0) {
+      ids.sort((a, b) => (patients[b].created || 0) - (patients[a].created || 0));
+      currentIds.nt = ids[0];
+      saveCurrentIdsStore();
+      updateVisibleTabs(_getScanTypes(patients[ids[0]]));
+      _applyPatientPanel(ids[0]);
+    } else {
+      // No NT patients locally — defer to Firebase, show "No Patient" in the meantime
+      _waitingForDefaultPatient = true;
+      renderPatientHeader();
+      return;
+    }
+  } else {
+    // No local patients at all — defer to Firebase, show "No Patient" in the meantime
+    _waitingForDefaultPatient = true;
+    renderPatientHeader();
+    return;
+  }
+  renderPatientHeader();
+}
+
+function initPatients() {
+  // 1. Load from localStorage instantly so the app is usable right away
+  patients = storage_get('sc_patients') || {};
+  _migrateAndApply(storage_get('sc_currentIds'));
+
+  // 2. Connect to Firebase — onSnapshot fires immediately with latest cloud data
+  //    and then fires again whenever any device makes a change
+  initFirebase();
+}
+
+function _createPatient(name, scanTypes) {
+  const id = 'p_' + Date.now();
+  const num = Object.keys(patients).length + 1;
+  const types = Array.isArray(scanTypes) ? scanTypes : [scanTypes || 'nt'];
+  const scans = {};
+  types.forEach(st => { scans[st] = { checked: [], values: {}, toggles: {} }; });
+  patients[id] = { id, name: name || ('Patient ' + num), created: Date.now(), scanTypes: types, scans };
+  types.forEach(st => { currentIds[st] = id; });
+  currentScan = types.includes(currentScan) ? currentScan : types[0];
+  saveCurrentIdsStore(); savePatientsStore();
+  ['nt','target','echo'].forEach(s => {
+    document.getElementById('tab-' + s).classList.toggle('active', s === currentScan);
+    document.getElementById('panel-' + s).classList.toggle('active', s === currentScan);
+  });
+  _clearPanel(currentScan);
+  updateVisibleTabs(types);
+  renderPatientHeader(); updateStats();
+}
+
+// Restore the current tab's panel state for a patient
+function _applyPatientPanel(id) {
+  const p = patients[id];
+  if (!p) return;
+  const panel = document.getElementById('panel-' + currentScan);
+  if (!panel) return;
+  const sd = _getScanData(p, currentScan);
+  panel.querySelectorAll('.item-btn').forEach(b => { b.classList.remove('checked', 'sua-selected'); });
+  panel.querySelectorAll('.label-toggle').forEach(tog => {
+    const opts = tog.querySelectorAll('.label-toggle-opt');
+    opts.forEach((o, i) => { o.classList.toggle('active', i === 0); o.classList.remove('sua'); });
+    tog.closest('.item-btn').querySelector('.item-label').textContent = opts[0].textContent;
+  });
+  panel.querySelectorAll('.item-input').forEach(inp => inp.value = '');
+  panel.querySelectorAll('.item-btn').forEach(b => {
+    const tog = b.querySelector('.label-toggle');
+    if (tog && sd.toggles) {
+      const opts = tog.querySelectorAll('.label-toggle-opt');
+      const key = opts[0].textContent;
+      const saved = sd.toggles[key];
+      if (saved) {
+        opts.forEach(o => {
+          o.classList.toggle('active', o.textContent === saved);
+          o.classList.toggle('sua', o.textContent === saved && saved === 'SUA');
+        });
+        b.querySelector('.item-label').textContent = saved;
+        b.classList.toggle('sua-selected', saved === 'SUA');
+      }
+    }
+    const label = b.querySelector('.item-label').textContent.trim();
+    if (sd.checked && sd.checked.includes(label)) b.classList.add('checked');
+    const inp = b.querySelector('.item-input');
+    if (inp) inp.value = (sd.values && sd.values[label]) ? sd.values[label] : '';
+  });
+  refreshSuaAlert();
+}
+
+function _clearPanel(scan) {
+  const panel = document.getElementById('panel-' + scan);
+  if (!panel) return;
+  panel.querySelectorAll('.item-btn').forEach(b => { b.classList.remove('checked', 'sua-selected'); });
+  panel.querySelectorAll('.label-toggle').forEach(tog => {
+    const opts = tog.querySelectorAll('.label-toggle-opt');
+    opts.forEach((o, i) => { o.classList.toggle('active', i === 0); o.classList.remove('sua'); });
+    tog.closest('.item-btn').querySelector('.item-label').textContent = opts[0].textContent;
+  });
+  panel.querySelectorAll('.item-input').forEach(inp => inp.value = '');
+  document.getElementById('sua-alert').classList.remove('show');
+}
+
+function saveCurrentToStore() {
+  const id = currentIds[currentScan];
+  if (!id || !patients[id]) return;
+  const panel = document.getElementById('panel-' + currentScan);
+  if (!panel) return;
+  if (!patients[id].scans) patients[id].scans = {};
+  const sd = patients[id].scans[currentScan] || {};
+  sd.checked = [];
+  panel.querySelectorAll('.item-btn.checked').forEach(b => { sd.checked.push(b.querySelector('.item-label').textContent.trim()); });
+  sd.values = {};
+  panel.querySelectorAll('.item-input').forEach(inp => {
+    const label = inp.closest('.item-btn').querySelector('.item-label').textContent.trim();
+    if (inp.value.trim()) sd.values[label] = inp.value.trim();
+  });
+  sd.toggles = {};
+  panel.querySelectorAll('.label-toggle').forEach(tog => {
+    const active = tog.querySelector('.label-toggle-opt.active');
+    const key = tog.querySelectorAll('.label-toggle-opt')[0].textContent;
+    if (active) sd.toggles[key] = active.textContent;
+  });
+  patients[id].scans[currentScan] = sd;
+  savePatientsStore();
+}
+
+function savePatientsStore() { storage_set('sc_patients', patients); fbSave(); }
+function saveCurrentIdsStore() { storage_set('sc_currentIds', currentIds); } // device-local only
+
+function renderPatientHeader() {
+  const id = currentIds[currentScan];
+  const p = id ? patients[id] : null;
+  document.getElementById('patient-name-display').textContent = p ? p.name : 'No Patient';
+}
+
+function getPatientProgress(id, forScan) {
+  const p = patients[id];
+  if (!p) return { done: 0, total: 0, pct: 0 };
+  const scan = forScan || _getScanTypes(p)[0];
+  let total = 0;
+  (SCAN_CATS[scan] || []).forEach(cat => {
+    const g = document.getElementById('group-' + cat);
+    if (g) total += g.querySelectorAll('.item-btn').length;
+  });
+  const sd = _getScanData(p, scan);
+  const done = (sd.checked || []).length;
+  return { done, total, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+function openPatientManager() {
+  saveCurrentToStore();
+  renderPMList();
+  document.getElementById('pm-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('pm-panel').classList.add('show'), 10);
+}
+
+function closePatientManager() {
+  document.getElementById('pm-panel').classList.remove('show');
+  setTimeout(() => document.getElementById('pm-overlay').classList.remove('show'), 300);
+}
+
+function closePMIfOutside(e) {
+  if (e.target === document.getElementById('pm-overlay')) closePatientManager();
+}
+
+function renderPMList() {
+  const scanLabel = { nt: 'NT SCAN', target: 'TARGET SCAN', echo: 'ECHO' };
+  document.getElementById('pm-title').textContent = '👤 All Patients';
+  const list = document.getElementById('pm-list');
+  const activeIds = new Set(Object.values(currentIds).filter(Boolean));
+  // Show ALL patients regardless of scan type
+  const ids = Object.keys(patients).sort((a, b) => patients[a].created - patients[b].created);
+  list.innerHTML = ids.length === 0 ? '<p style="color:#999;text-align:center;padding:20px">No patients yet</p>' : '';
+  ids.forEach(id => {
+    const p = patients[id];
+    const types = _getScanTypes(p);
+    const isActive = activeIds.has(id);
+    // Show combined progress across all scan types
+    let totalDone = 0, totalItems = 0;
+    types.forEach(st => {
+      const prog = getPatientProgress(id, st);
+      totalDone += prog.done; totalItems += prog.total;
+    });
+    const pct = totalItems ? Math.round(totalDone / totalItems * 100) : 0;
+    const typeStr = types.map(s => scanLabel[s] || s).join(' + ');
+    const dateStr = new Date(p.created).toLocaleDateString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const div = document.createElement('div');
+    div.className = 'pm-patient' + (isActive ? ' active-patient' : '');
+    div.innerHTML = `
+      <div class="pm-pat-info" onclick="resumePatient('${id}')">
+        <div class="pm-pat-name">${p.name}${isActive ? ' <span style="color:#1a5f9e;font-size:.65rem;font-weight:700"> ● OPEN</span>' : ''}${types.length > 1 ? ' <span style="color:#8e44ad;font-size:.6rem;font-weight:700;background:#f3e8ff;padding:1px 5px;border-radius:8px">MULTI</span>' : ''}</div>
+        <div class="pm-pat-meta">${typeStr} &nbsp;&middot;&nbsp; ${dateStr}</div>
+        <div class="pm-pat-progress"><div class="pm-pat-fill" style="width:${pct}%"></div></div>
+        <div class="pm-pat-pct">${totalDone}/${totalItems} done &nbsp;&mdash;&nbsp; ${pct}%</div>
+      </div>
+      <button class="pm-edit-btn" onclick="openEditModal('${id}')" title="Edit">&#x270F;&#xFE0F;</button>
+      <button class="pm-delete-btn" onclick="deletePatient('${id}')" title="Delete">&#x1F5D1;</button>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function resumePatient(id) {
+  saveCurrentToStore();
+  const p = patients[id];
+  if (!p) return;
+  const types = _getScanTypes(p);
+  // Register this patient as active in all its scan tabs
+  types.forEach(st => { currentIds[st] = id; });
+  // Stay on currentScan if patient has it, else switch to patient's first type
+  const targetScan = types.includes(currentScan) ? currentScan : types[0];
+  currentScan = targetScan;
+  saveCurrentIdsStore();
+  ['nt','target','echo'].forEach(s => {
+    document.getElementById('tab-' + s).classList.toggle('active', s === currentScan);
+    document.getElementById('panel-' + s).classList.toggle('active', s === currentScan);
+  });
+  updateVisibleTabs(_getScanTypes(p));
+  _applyPatientPanel(id);
+  renderPatientHeader(); updateStats();
+  closePatientManager();
+}
+
+function deletePatient(id) {
+  if (!confirm('Delete this patient\'s data?')) return;
+  const p = patients[id];
+  const types = p ? _getScanTypes(p) : [];
+  delete patients[id];
+  savePatientsStore();
+  types.forEach(st => {
+    if (currentIds[st] === id) {
+      const remaining = Object.keys(patients).filter(pid => _getScanTypes(patients[pid]).includes(st));
+      currentIds[st] = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+    }
+  });
+  saveCurrentIdsStore();
+  if (types.includes(currentScan)) {
+    const nextId = currentIds[currentScan];
+    if (nextId && patients[nextId]) {
+      updateVisibleTabs(_getScanTypes(patients[nextId]));
+      _applyPatientPanel(nextId);
+    } else {
+      updateVisibleTabs(null); // no patient left — show all tabs
+      _clearPanel(currentScan);
+    }
+    renderPatientHeader(); updateStats();
+  }
+  renderPMList();
+}
+
+let patientModalMode = 'new'; // 'new' | 'edit'
+let editPatientId = null;
+
+function promptNewPatient() {
+  patientModalMode = 'new';
+  editPatientId = null;
+  newPatientScanTypes = new Set();
+  ['nt','target','echo'].forEach(s => document.getElementById('st-' + s).classList.remove('selected'));
+  document.getElementById('new-patient-name').value = '';
+  document.getElementById('patient-modal-title').textContent = '👤 New Patient';
+  document.getElementById('patient-modal-ok').textContent = 'Start Scan';
+  document.getElementById('scan-type-hint').textContent = 'Tap to select scan type(s)';
+  document.getElementById('scan-type-hint').style.color = '#999';
+  document.getElementById('name-modal-bg').classList.add('show');
+  setTimeout(() => document.getElementById('new-patient-name').focus(), 150);
+}
+
+function openEditModal(id) {
+  const p = patients[id];
+  if (!p) return;
+  patientModalMode = 'edit';
+  editPatientId = id;
+  newPatientScanTypes = new Set(_getScanTypes(p));
+  document.getElementById('new-patient-name').value = p.name;
+  ['nt','target','echo'].forEach(s => {
+    document.getElementById('st-' + s).classList.toggle('selected', newPatientScanTypes.has(s));
+  });
+  document.getElementById('patient-modal-title').textContent = '✏️ Edit Patient';
+  document.getElementById('patient-modal-ok').textContent = 'Save Changes';
+  const labels = { nt:'NT SCAN', target:'TARGET SCAN', echo:'ECHO' };
+  const hint = document.getElementById('scan-type-hint');
+  hint.textContent = '✔ ' + [...newPatientScanTypes].map(s => labels[s]).join(' + ') + ' selected';
+  hint.style.color = '#22a06b';
+  document.getElementById('name-modal-bg').classList.add('show');
+  setTimeout(() => document.getElementById('new-patient-name').focus(), 150);
+}
+
+function toggleScanType(type) {
+  if (newPatientScanTypes.has(type)) {
+    if (patientModalMode === 'edit' && newPatientScanTypes.size > 1) newPatientScanTypes.delete(type);
+    else if (patientModalMode === 'new') newPatientScanTypes.delete(type);
+  } else {
+    newPatientScanTypes.add(type);
+  }
+  ['nt','target','echo'].forEach(s => {
+    document.getElementById('st-' + s).classList.toggle('selected', newPatientScanTypes.has(s));
+  });
+  const hint = document.getElementById('scan-type-hint');
+  if (newPatientScanTypes.size === 0) {
+    hint.textContent = 'Tap to select scan type(s)'; hint.style.color = '#999';
+  } else {
+    const labels = { nt:'NT SCAN', target:'TARGET SCAN', echo:'ECHO' };
+    hint.textContent = '✔ ' + [...newPatientScanTypes].map(s => labels[s]).join(' + ') + ' selected';
+    hint.style.color = '#22a06b';
+  }
+}
+
+function confirmPatientModal() {
+  if (newPatientScanTypes.size === 0) {
+    const hint = document.getElementById('scan-type-hint');
+    hint.textContent = '⚠ Please select at least one scan type';
+    hint.style.color = '#e74c3c';
+    ['nt','target','echo'].forEach(s => document.getElementById('st-' + s).style.borderColor = '#e74c3c');
+    setTimeout(() => ['nt','target','echo'].forEach(s => document.getElementById('st-' + s).style.borderColor = ''), 1500);
+    return;
+  }
+  const name = document.getElementById('new-patient-name').value.trim();
+  document.getElementById('name-modal-bg').classList.remove('show');
+  if (patientModalMode === 'edit' && editPatientId) {
+    _saveEditPatient(editPatientId, name, [...newPatientScanTypes]);
+  } else {
+    closePatientManager();
+    saveCurrentToStore();
+    _createPatient(name, [...newPatientScanTypes]);
+  }
+}
+
+function _saveEditPatient(id, name, newTypes) {
+  const p = patients[id];
+  if (!p) return;
+  const oldTypes = _getScanTypes(p);
+  // Update name
+  if (name) p.name = name;
+  // Handle removed scan types
+  oldTypes.forEach(st => {
+    if (!newTypes.includes(st) && currentIds[st] === id) {
+      currentIds[st] = null;
+      if (currentScan === st) { _clearPanel(st); }
+    }
+  });
+  // Handle added scan types
+  newTypes.forEach(st => {
+    if (!oldTypes.includes(st)) {
+      if (!p.scans) p.scans = {};
+      p.scans[st] = p.scans[st] || { checked: [], values: {}, toggles: {} };
+      currentIds[st] = id;
+    }
+  });
+  p.scanTypes = newTypes;
+  saveCurrentIdsStore(); savePatientsStore();
+  // If current patient was edited, refresh the visible tabs and header
+  if (Object.values(currentIds).includes(id)) {
+    updateVisibleTabs(_getScanTypes(p));
+    // If current tab was removed, switch to first remaining type
+    if (!newTypes.includes(currentScan)) {
+      currentScan = newTypes[0];
+      ['nt','target','echo'].forEach(s => {
+        document.getElementById('tab-' + s).classList.toggle('active', s === currentScan);
+        document.getElementById('panel-' + s).classList.toggle('active', s === currentScan);
+      });
+      _applyPatientPanel(id);
+    }
+    renderPatientHeader(); updateStats();
+  }
+  renderPMList();
+}
+
+function cancelNewPatient() {
+  document.getElementById('name-modal-bg').classList.remove('show');
+}
+
+document.getElementById('new-patient-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmPatientModal();
+});
+
+// ══════════════════════════════════════════
+//  CHECKLIST ACTIONS
+// ══════════════════════════════════════════
+function toggle(btn) {
+  btn.classList.toggle('checked');
+  saveCurrentToStore();
+  updateStats();
+}
+
+function switchLabel(e, toggleEl) {
+  e.stopPropagation();
+  const opts = toggleEl.querySelectorAll('.label-toggle-opt');
+  const activeIdx = [...opts].findIndex(o => o.classList.contains('active'));
+  const nextIdx = (activeIdx + 1) % opts.length;
+  opts.forEach((o, i) => o.classList.toggle('active', i === nextIdx));
+  // Update visible label
+  const newLabel = opts[nextIdx].textContent;
+  toggleEl.closest('.item-btn').querySelector('.item-label').textContent = newLabel;
+  // Red highlight when SUA is active
+  const isSua = newLabel === 'SUA';
+  opts[nextIdx].classList.toggle('sua', isSua);
+  toggleEl.closest('.item-btn').classList.toggle('sua-selected', isSua);
+  saveCurrentToStore();
+  refreshSuaAlert();
+}
+
+function refreshSuaAlert() {
+  // Show red banner if any label-toggle is currently showing SUA
+  const hasSua = [...document.querySelectorAll('.item-btn.sua-selected')].length > 0;
+  document.getElementById('sua-alert').classList.toggle('show', hasSua);
+}
+
+function toggleAll(groupId) {
+  const group = document.getElementById('group-' + groupId);
+  if (!group) return;
+  const btns = group.querySelectorAll('.item-btn');
+  const allDone = [...btns].every(b => b.classList.contains('checked'));
+  btns.forEach(b => allDone ? b.classList.remove('checked') : b.classList.add('checked'));
+  saveCurrentToStore();
+  updateStats();
+}
+
+function updateStats() {
+  let total = 0, done = 0;
+  const pendingSections = [];
+
+  SCAN_CATS[currentScan].forEach(cat => {
+    const group = document.getElementById('group-' + cat);
+    if (!group) return;
+    const btns = group.querySelectorAll('.item-btn');
+    const catDone = group.querySelectorAll('.item-btn.checked').length;
+    total += btns.length; done += catDone;
+
+    const badge = document.getElementById('badge-' + cat);
+    if (badge) { badge.textContent = catDone + '/' + btns.length; badge.classList.toggle('all-done', catDone === btns.length); }
+
+    const pendingItems = [];
+    btns.forEach(b => { if (!b.classList.contains('checked')) pendingItems.push(b.querySelector('.item-label').textContent.trim()); });
+    if (pendingItems.length > 0) pendingSections.push({ cat, items: pendingItems });
+  });
+
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('cnt-done').textContent = done;
+  document.getElementById('cnt-pending').textContent = total - done;
+  document.getElementById('cnt-total').textContent = total;
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = pct + '%';
+
+  const strip = document.getElementById('pending-strip');
+  if (total - done > 0 && done > 0) {
+    const html = pendingSections.map(sec => {
+      const meta = CAT_META[sec.cat] || { name: sec.cat, color: '#555' };
+      return `<div class="pending-section">
+        <span class="pending-sec-label" style="color:${meta.color}">${meta.name}:</span>
+        <span class="pending-sec-items" style="color:${meta.color}">${sec.items.join(' &middot; ')}</span>
+      </div>`;
+    }).join('');
+    document.getElementById('pending-list').innerHTML = html;
+    strip.classList.add('show');
+  } else {
+    strip.classList.remove('show');
+  }
+
+  const banner = document.getElementById('done-' + currentScan);
+  if (banner) banner.classList.toggle('show', done === total && total > 0);
+}
+
+// ══════════════════════════════════════════
+//  VOICE — MULTI-ITEM RECOGNITION
+// ══════════════════════════════════════════
+const VOICE_ALIASES = {
+  'four chamber': '4ch', 'four ch': '4ch',
+  'lateral ventricle': 'lv',
+  'nuchal translucency': 'nt', 'crown rump length': 'crl',
+  'nasal bone': 'nb', 'ductus venosus': 'dv',
+  'intracranial translucency': 'it',
+  'femur length': 'fl', 'abdominal circumference': 'ac',
+  'biparietal diameter': 'bpd', 'occipitofrontal diameter': 'ofd',
+  'right upper limb': 'right ul', 'left upper limb': 'left ul',
+  'three vessel': '3vc', 'three vessel view': '3vc',
+  'cavum septum pellucidum': 'csp', 'cisterna magna': 'cm',
+  'nuchal fold thickness': 'nft', 'pulmonary artery': 'pas',
+  'aortic arch': 'arch',
+  'right ventricular outflow': 'rvot', 'left ventricular outflow': 'lvot',
+  'middle cerebral artery': 'mca',
+  'cord': 'cord insertion', 'umbilical': 'umbilical pi',
+  'movement': 'fetal movement',
+  'nose mouth': 'nose  mouth', 'nose and mouth': 'nose  mouth',
+};
+
+let recognition = null, isListening = false, toastTimer = null;
+
+function showToast(msg, type) {
+  const t = document.getElementById('voice-toast');
+  t.textContent = msg; t.className = 'voice-toast show ' + (type || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function norm(s) {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function getItemList() {
+  const panel = document.getElementById('panel-' + currentScan);
+  return [...panel.querySelectorAll('.item-btn')].map(btn => ({
+    label: btn.querySelector('.item-label').textContent.trim(),
+    key: norm(btn.querySelector('.item-label').textContent.trim()),
+    btn
+  }));
+}
+
+function findAllMatches(spoken) {
+  const items = getItemList();
+  // Apply spoken aliases
+  let spk = norm(spoken);
+  for (const [alias, target] of Object.entries(VOICE_ALIASES)) {
+    spk = spk.replace(new RegExp('\\b' + norm(alias) + '\\b', 'g'), norm(target));
+  }
+
+  const matched = [], used = new Set();
+  // Sort by key length descending — greedy longest match first
+  const sorted = [...items].sort((a, b) => b.key.length - a.key.length);
+
+  for (const item of sorted) {
+    if (used.has(item.label)) continue;
+    const escaped = item.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp('(^|\\s)' + escaped + '(\\s|$)').test(spk)) {
+      matched.push(item); used.add(item.label);
+      spk = spk.replace(new RegExp('(^|\\s)' + escaped + '(\\s|$)', 'g'), ' ');
+    }
+  }
+
+  // Fallback: word-by-word partial matching
+  if (matched.length === 0) {
+    for (const word of norm(spoken).split(/\s+/).filter(w => w.length >= 2)) {
+      for (const item of items) {
+        if (!used.has(item.label) && item.key.split(' ').includes(word)) {
+          matched.push(item); used.add(item.label); break;
+        }
+      }
+    }
+  }
+  return matched;
+}
+
+function toggleVoice() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Voice recognition not supported.\nUse Chrome (Android/Desktop) or Safari (iPhone).');
+    return;
+  }
+  isListening ? stopVoice() : startVoice();
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('mic-btn').classList.add('listening');
+    document.getElementById('mic-btn').textContent = '⏹';
+    showToast('🎤 Listening… say multiple item names', '');
+  };
+
+  recognition.onresult = (e) => {
+    const spoken = e.results[e.results.length - 1][0].transcript.trim();
+    const matches = findAllMatches(spoken);
+    if (matches.length === 0) { showToast('❓ Not found: "' + spoken + '"', 'unmatched'); return; }
+    const labels = [];
+    matches.forEach(item => {
+      item.btn.classList.toggle('checked');
+      labels.push((item.btn.classList.contains('checked') ? '✔ ' : '↩ ') + item.label);
+      item.btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    saveCurrentToStore(); updateStats();
+    showToast(labels.join('   ·   '), matches.length > 1 ? 'multi' : 'matched');
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'not-allowed') alert('Microphone access denied.\nAllow microphone in browser settings.');
+    stopVoice();
+  };
+
+  recognition.onend = () => { if (isListening) recognition.start(); }; // auto-restart for iOS
+  recognition.start();
+}
+
+function stopVoice() {
+  isListening = false;
+  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  document.getElementById('mic-btn').classList.remove('listening');
+  document.getElementById('mic-btn').textContent = '🎤';
+  showToast('Voice off', '');
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+initPatients();
+updateStats();
+</script>
+</body>
+</html>
