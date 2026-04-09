@@ -399,7 +399,8 @@
 // ── Constants ─────────────────────────────────────────────────────
 const SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
 const SHEET_TAB = 'Lab Register';
-const COL_RANGE = `${SHEET_TAB}!A:K`;
+const SHEET_REF = `'${SHEET_TAB}'`;   // single-quoted for Sheets API (handles spaces)
+const COL_RANGE = `${SHEET_REF}!A:K`;
 const HEADERS   = ['ID','Date','Patient Name','Mobile No.','Referring Doctor',
                    'Procedure','Lab','Payment','Comment',
                    'Report Received Date','Report Sent to Patient'];
@@ -582,11 +583,11 @@ async function apiFetch(url, opts = {}) {
 // ── Ensure header row ─────────────────────────────────────────────
 async function ensureHeader() {
   const data = await apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A1:K1`
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:K1`
   );
   if (((data.values || [])[0] || [])[0] !== 'ID') {
     await apiFetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A1:K1?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:K1?valueInputOption=RAW`,
       { method: 'PUT', body: JSON.stringify({ values: [HEADERS] }) }
     );
   }
@@ -632,7 +633,7 @@ async function loadData() {
 // ── Append new row ────────────────────────────────────────────────
 async function appendRow(entry) {
   return apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     { method: 'POST', body: JSON.stringify({ values: [toRow(entry)] }) }
   );
 }
@@ -647,7 +648,7 @@ async function updateRow(entry) {
   if (idx === -1) throw new Error('Row not found in sheet.');
   const rowNum = idx + 2; // +1 for header, +1 for 1-index
   return apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A${rowNum}:K${rowNum}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A${rowNum}:K${rowNum}?valueInputOption=RAW`,
     { method: 'PUT', body: JSON.stringify({ values: [toRow(entry)] }) }
   );
 }
