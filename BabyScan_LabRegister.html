@@ -215,10 +215,16 @@
             <div id="ds_recv" class="text-sm font-bold text-gray-400">Not yet received</div>
           </div>
           <div id="sentBox" class="rounded-xl p-3 border-2 border-gray-200 bg-gray-50">
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Sent to Patient</div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Last Sent</div>
             <div id="ds_sent" class="text-sm font-bold text-gray-400">Not yet sent</div>
           </div>
         </div>
+      </div>
+
+      <!-- Per-report tracking -->
+      <div id="ds_reports_wrap" class="hidden border-t pt-3">
+        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Reports</div>
+        <div id="ds_reports_list" class="space-y-2"></div>
       </div>
     </div>
 
@@ -358,6 +364,28 @@
                          focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50 resize-none"></textarea>
       </div>
 
+      <!-- Reports expected -->
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Reports Expected</label>
+        <div id="reportCheckboxes" class="grid grid-cols-2 gap-2"></div>
+        <div class="mt-2 flex gap-2">
+          <button onclick="toggleAddReport()"
+                  class="flex-1 border border-dashed border-purple-300 text-purple-600 text-sm font-semibold
+                         py-2 rounded-xl active:bg-purple-50">
+            + Add Report Type
+          </button>
+        </div>
+        <div id="addReportRow" class="hidden mt-2 flex gap-2">
+          <input id="newReportInput" type="text" placeholder="e.g. CMA"
+                 class="flex-1 border border-purple-300 rounded-xl px-3 py-2.5 text-sm text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-purple-400 bg-purple-50">
+          <button onclick="saveNewReport()"
+                  class="bg-purple-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm active:bg-purple-800">
+            Add
+          </button>
+        </div>
+      </div>
+
       <!-- Report status (edit mode only) -->
       <div id="reportFields" class="hidden space-y-3 border-t pt-3">
         <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">Report Status</div>
@@ -400,14 +428,15 @@
 const SCOPE   = 'https://www.googleapis.com/auth/spreadsheets';
 const HEADERS = ['ID','Date','Patient Name','Mobile No.','Referring Doctor',
                  'Procedure','Lab','Payment','Comment',
-                 'Report Received Date','Report Sent to Patient'];
+                 'Report Received Date','Report Sent to Patient','Reports'];
 
 // Sheet tab name — resolved dynamically from the spreadsheet on first load
 let SHEET_REF = 'Sheet1';   // default; overwritten by resolveSheetTab()
-let COL_RANGE = `${SHEET_REF}!A:K`;
+let COL_RANGE = `${SHEET_REF}!A:L`;
 
-const BASE_PROCS = ['Amniocentesis','CVS','Cordocentesis','POC'];
-const BASE_LABS  = ['Supratech','SN Gene'];
+const BASE_PROCS   = ['Amniocentesis','CVS','Cordocentesis','POC'];
+const BASE_LABS    = ['Supratech','SN Gene'];
+const BASE_REPORTS = ['QFPCR','FISH','MICROARRAY','KARYOTYPE','WES','TORCH','PCR'];
 
 // ── State ─────────────────────────────────────────────────────────
 let tokenClient;
@@ -416,8 +445,9 @@ let tokenExpiry  = +localStorage.getItem('bs_lab_expiry') || 0;
 let sheetId      = localStorage.getItem('bs_lab_sheetid') || '';
 let records      = [];
 let activeId     = null;
-let customProcs  = JSON.parse(localStorage.getItem('bs_lab_custom_procs') || '[]');
-let customLabs   = JSON.parse(localStorage.getItem('bs_lab_custom_labs')  || '[]');
+let customProcs    = JSON.parse(localStorage.getItem('bs_lab_custom_procs')    || '[]');
+let customLabs     = JSON.parse(localStorage.getItem('bs_lab_custom_labs')     || '[]');
+let customReports  = JSON.parse(localStorage.getItem('bs_lab_custom_reports')  || '[]');
 
 // ── Boot ──────────────────────────────────────────────────────────
 window.addEventListener('load', () => {
@@ -451,6 +481,25 @@ function buildDropdowns() {
   const frmLab = document.getElementById('f_lab');
   frmLab.innerHTML = '<option value="">Select lab</option>';
   allLabs.forEach(l => frmLab.insertAdjacentHTML('beforeend', `<option>${l}</option>`));
+}
+
+// ── Build report checkboxes in form ───────────────────────────────
+function buildReportCheckboxes(selected = []) {
+  const allReports = [...BASE_REPORTS, ...customReports];
+  const wrap = document.getElementById('reportCheckboxes');
+  wrap.innerHTML = allReports.map(r => {
+    const checked = selected.includes(r) ? 'checked' : '';
+    return `
+    <label class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 cursor-pointer active:bg-purple-50">
+      <input type="checkbox" value="${r}" ${checked}
+             class="w-4 h-4 accent-purple-600 flex-shrink-0">
+      <span class="text-sm font-semibold text-gray-700">${r}</span>
+    </label>`;
+  }).join('');
+}
+
+function getCheckedReports() {
+  return [...document.querySelectorAll('#reportCheckboxes input:checked')].map(c => c.value);
 }
 
 // ── Add custom procedure ──────────────────────────────────────────
@@ -489,6 +538,25 @@ function saveNewLab() {
   document.getElementById('f_lab').value = val;
   document.getElementById('newLabInput').value = '';
   document.getElementById('addLabRow').classList.add('hidden');
+}
+
+// ── Add custom report type ────────────────────────────────────────
+function toggleAddReport() {
+  const row = document.getElementById('addReportRow');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('newReportInput').focus();
+}
+function saveNewReport() {
+  const val = document.getElementById('newReportInput').value.trim().toUpperCase();
+  if (!val) return;
+  if (![...BASE_REPORTS, ...customReports].includes(val)) {
+    customReports.push(val);
+    localStorage.setItem('bs_lab_custom_reports', JSON.stringify(customReports));
+  }
+  const checked = getCheckedReports();
+  buildReportCheckboxes([...checked, val]);
+  document.getElementById('newReportInput').value = '';
+  document.getElementById('addReportRow').classList.add('hidden');
 }
 
 // ── Sheet ID setup ────────────────────────────────────────────────
@@ -632,6 +700,7 @@ async function loadData() {
         comment:        r[8]  || '',
         reportReceived: r[9]  || '',
         reportSent:     r[10] || '',
+        reports:        parseReports(r[11] || ''),
       }));
     updateStats();
     renderCards();
@@ -699,7 +768,19 @@ async function deleteRow(entryId) {
 function toRow(e) {
   return [e.id, e.date, e.patient, e.mobile, e.doctor,
           e.procedure, e.lab, e.payment, e.comment,
-          e.reportReceived, e.reportSent];
+          e.reportReceived, e.reportSent, serializeReports(e.reports || [])];
+}
+
+// reports = [{name, sent}]  ↔  "QFPCR:2026-04-09,FISH:,KARYOTYPE:"
+function parseReports(str) {
+  if (!str) return [];
+  return str.split(',').filter(Boolean).map(part => {
+    const [name, sent] = part.split(':');
+    return { name: name || '', sent: sent || '' };
+  });
+}
+function serializeReports(arr) {
+  return arr.map(r => `${r.name}:${r.sent}`).join(',');
 }
 
 // ── Stats ─────────────────────────────────────────────────────────
@@ -788,10 +869,19 @@ function renderCards() {
         </div>
         <div class="flex-shrink-0">${statusBadge(r)}</div>
       </div>
-      <div class="flex items-center gap-2 mt-2">
+      <div class="flex items-center flex-wrap gap-1.5 mt-2">
         <span class="badge ${procColor(r.procedure)}">${r.procedure || '—'}</span>
         ${r.payment ? `<span class="text-xs text-gray-500 font-semibold">₹${r.payment}</span>` : ''}
       </div>
+      ${r.reports && r.reports.length ? `
+      <div class="flex flex-wrap gap-1 mt-2">
+        ${r.reports.map(rp => `
+          <span class="text-xs font-bold px-2 py-0.5 rounded-full ${rp.sent
+            ? 'bg-green-100 text-green-700'
+            : 'bg-gray-100 text-gray-500 line-through opacity-60'}">
+            ${rp.sent ? '✅' : '⏳'} ${rp.name}
+          </span>`).join('')}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -850,6 +940,35 @@ function openDetail(id) {
   }
 
   document.getElementById('waSendBtn').style.display = r.mobile ? 'block' : 'none';
+
+  // Per-report tracking panel
+  const rWrap = document.getElementById('ds_reports_wrap');
+  const rList = document.getElementById('ds_reports_list');
+  if (r.reports && r.reports.length) {
+    rWrap.classList.remove('hidden');
+    rList.innerHTML = r.reports.map((rp, i) => `
+      <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
+        <div class="flex items-center gap-2">
+          <span class="text-base">${rp.sent ? '✅' : '⏳'}</span>
+          <div>
+            <div class="font-bold text-sm text-gray-800">${rp.name}</div>
+            <div class="text-xs text-gray-400">${rp.sent ? 'Sent ' + fmtDate(rp.sent) : 'Not yet sent'}</div>
+          </div>
+        </div>
+        ${!rp.sent ? `
+        <button onclick="sendSingleReport('${rp.name}')"
+                class="text-xs font-bold bg-green-500 text-white px-3 py-1.5 rounded-lg active:bg-green-600">
+          📱 Send
+        </button>` : `
+        <button onclick="sendSingleReport('${rp.name}')"
+                class="text-xs font-bold bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg active:bg-gray-300">
+          Resend
+        </button>`}
+      </div>`).join('');
+  } else {
+    rWrap.classList.add('hidden');
+  }
+
   openSheet('detailSheet');
 }
 
@@ -876,16 +995,49 @@ async function sendWhatsApp() {
   const mobile = cleanMobile(r.mobile);
   if (!mobile) { showToast('No mobile number saved', 'bg-red-500'); return; }
 
-  const name = r.patient.trim().split(' ')[0];
-  const msg  = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
+  const name        = r.patient.trim().split(' ')[0];
+  const unsentReps  = (r.reports || []).filter(rp => !rp.sent);
+  const reportLines = unsentReps.length
+    ? '\n\n*Reports ready:*\n' + unsentReps.map(rp => `• ${rp.name}`).join('\n')
+    : '';
+  const msg = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.${reportLines}\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
 
-  r.reportSent = todayISO();
+  // Stamp all unsent reports as sent today
+  const today = todayISO();
+  (r.reports || []).forEach(rp => { if (!rp.sent) rp.sent = today; });
+  r.reportSent = today;
   document.getElementById('waSendBtn').textContent = '⏳ Saving…';
   try {
     await updateRow(r);
     updateStats(); renderCards(); openDetail(activeId);
     window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
-    showToast('📱 WhatsApp opened & date stamped', 'bg-green-500');
+    showToast('📱 WhatsApp opened & all reports stamped', 'bg-green-500');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-red-500');
+  }
+}
+
+// ── Send single report via WhatsApp ───────────────────────────────
+async function sendSingleReport(reportName) {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  const mobile = cleanMobile(r.mobile);
+  if (!mobile) { showToast('No mobile number saved', 'bg-red-500'); return; }
+
+  const name = r.patient.trim().split(' ')[0];
+  const msg  = `Dear ${name},\n\nYour *${reportName}* report from Baby Scan clinic is now ready.\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
+
+  const today = todayISO();
+  const rp = (r.reports || []).find(x => x.name === reportName);
+  if (rp) rp.sent = today;
+  // If all reports sent, stamp reportSent
+  if (r.reports && r.reports.every(x => x.sent)) r.reportSent = today;
+
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+    showToast(`📱 ${reportName} sent & stamped`, 'bg-green-500');
   } catch(e) {
     showToast('Error: ' + e.message, 'bg-red-500');
   }
@@ -908,6 +1060,8 @@ function editActive() {
   document.getElementById('f_sent').value      = r.reportSent;
   document.getElementById('reportFields').classList.remove('hidden');
   document.getElementById('formStatus').classList.add('hidden');
+  buildReportCheckboxes((r.reports || []).map(rp => rp.name));
+  document.getElementById('addReportRow').classList.add('hidden');
   closeSheet('detailSheet');
   openSheet('formSheet');
 }
@@ -943,6 +1097,8 @@ function openAddSheet() {
   document.getElementById('formStatus').classList.add('hidden');
   document.getElementById('addProcRow').classList.add('hidden');
   document.getElementById('addLabRow').classList.add('hidden');
+  document.getElementById('addReportRow').classList.add('hidden');
+  buildReportCheckboxes([]);
   openSheet('formSheet');
 }
 
@@ -958,6 +1114,16 @@ async function saveEntry() {
     return;
   }
 
+  // Merge checked report names with existing sent dates (preserve already-sent dates on edit)
+  const existingReports = activeId
+    ? (records.find(x => x.id === activeId) || {}).reports || []
+    : [];
+  const checkedNames = getCheckedReports();
+  const mergedReports = checkedNames.map(name => {
+    const prev = existingReports.find(rp => rp.name === name);
+    return { name, sent: prev ? prev.sent : '' };
+  });
+
   const entry = {
     id:             activeId || `lab_${Date.now()}`,
     date, patient,
@@ -968,6 +1134,7 @@ async function saveEntry() {
     comment:        document.getElementById('f_comment').value.trim(),
     reportReceived: document.getElementById('f_received').value || '',
     reportSent:     document.getElementById('f_sent').value     || '',
+    reports:        mergedReports,
   };
 
   const btn = document.getElementById('saveBtn');
