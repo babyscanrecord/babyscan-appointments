@@ -397,13 +397,14 @@
      ════════════════════════════════════════════════════════════════ -->
 <script>
 // ── Constants ─────────────────────────────────────────────────────
-const SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
-const SHEET_TAB = 'Lab Register';
-const SHEET_REF = `'${SHEET_TAB}'`;   // single-quoted for Sheets API (handles spaces)
-const COL_RANGE = `${SHEET_REF}!A:K`;
-const HEADERS   = ['ID','Date','Patient Name','Mobile No.','Referring Doctor',
-                   'Procedure','Lab','Payment','Comment',
-                   'Report Received Date','Report Sent to Patient'];
+const SCOPE   = 'https://www.googleapis.com/auth/spreadsheets';
+const HEADERS = ['ID','Date','Patient Name','Mobile No.','Referring Doctor',
+                 'Procedure','Lab','Payment','Comment',
+                 'Report Received Date','Report Sent to Patient'];
+
+// Sheet tab name — resolved dynamically from the spreadsheet on first load
+let SHEET_REF = 'Sheet1';   // default; overwritten by resolveSheetTab()
+let COL_RANGE = `${SHEET_REF}!A:K`;
 
 const BASE_PROCS = ['Amniocentesis','CVS','Cordocentesis','POC'];
 const BASE_LABS  = ['Supratech','SN Gene'];
@@ -580,6 +581,17 @@ async function apiFetch(url, opts = {}) {
   return res.status === 204 ? null : res.json();
 }
 
+// ── Resolve actual first sheet tab name ───────────────────────────
+async function resolveSheetTab() {
+  const meta = await apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties.title`
+  );
+  const firstTitle = (meta.sheets || [])[0]?.properties?.title || 'Sheet1';
+  // Wrap in single quotes only if name contains spaces
+  SHEET_REF = firstTitle.includes(' ') ? `'${firstTitle}'` : firstTitle;
+  COL_RANGE = `${SHEET_REF}!A:K`;
+}
+
 // ── Ensure header row ─────────────────────────────────────────────
 async function ensureHeader() {
   const data = await apiFetch(
@@ -600,6 +612,7 @@ async function loadData() {
   document.getElementById('cardsWrap').innerHTML = '';
   document.getElementById('emptyState').classList.add('hidden');
   try {
+    await resolveSheetTab();   // detect actual tab name (Sheet1, etc.)
     await ensureHeader();
     const data = await apiFetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${COL_RANGE}`
@@ -662,7 +675,9 @@ async function deleteRow(entryId) {
   const rows     = (dataRes.values || []).slice(1);
   const idx      = rows.findIndex(r => r[0] === entryId);
   if (idx === -1) throw new Error('Row not found in sheet.');
-  const sheetObj = metaRes.sheets.find(s => s.properties.title === SHEET_TAB);
+  // Match by unquoted title
+  const plainTitle = SHEET_REF.replace(/^'|'$/g, '');
+  const sheetObj   = metaRes.sheets.find(s => s.properties.title === plainTitle);
   if (!sheetObj) throw new Error('Sheet tab not found.');
   const sheetGid = sheetObj.properties.sheetId;
   const rowIndex = idx + 1; // 0-indexed; +1 for header row
