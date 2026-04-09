@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#7E22CE">
+  <title>Baby Scan — Lab Register</title>
+
+  <script>
+    const CLIENT_ID = '62741569651-4jgj7f4vb7qt12sqtv72gmnpkjfu9qf4.apps.googleusercontent.com';
+  </script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .modal-sheet { transition: transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+    .card { transition: transform 0.1s; }
+    .card:active { transform: scale(0.98); }
+    input, select, textarea { font-size: 16px !important; }
+    .spinner { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    .fade-in { animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
+    .pulse { animation: pulse 1.6s infinite; }
+  </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ── Header ─────────────────────────────────────────────────────── -->
+<div class="bg-purple-800 text-white shadow-lg sticky top-0 z-30">
+  <div class="flex justify-between items-center px-4 py-3">
+    <div class="flex items-center gap-3">
+      <a href="BabyScan_Appointments.html"
+         class="w-9 h-9 flex items-center justify-center rounded-full bg-purple-950 active:opacity-70 text-xl font-bold">
+        ‹
+      </a>
+      <div>
+        <div class="text-lg font-bold leading-tight">🧪 Lab Register</div>
+        <div class="text-xs text-purple-300">Baby Scan · Fetal Medicine</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="changeSheet()" title="Change linked Google Sheet"
+              class="text-xs font-semibold px-2 py-2 rounded-xl bg-purple-950 active:opacity-70">
+        📋
+      </button>
+      <button id="authBtn" onclick="handleAuth()"
+              class="text-sm font-semibold px-3 py-2 rounded-xl bg-purple-950 active:opacity-70">
+        Connect Sheets
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────── -->
+<div id="toast" class="fixed top-16 left-4 right-4 z-50 hidden">
+  <div id="toastInner" class="rounded-xl px-4 py-3 text-sm font-semibold text-center shadow-lg text-white"></div>
+</div>
+
+<!-- ── Sheet ID Setup Banner ──────────────────────────────────────── -->
+<div id="setupBanner" class="hidden px-4 py-3 bg-yellow-50 border-b border-yellow-200">
+  <div class="text-sm font-bold text-yellow-800 mb-1">📋 Link your Google Sheet</div>
+  <div class="text-xs text-yellow-700 mb-3">
+    Create a blank Google Sheet, copy its ID from the URL
+    (<code class="bg-yellow-100 px-1 rounded">…/spreadsheets/d/<b>SHEET_ID</b>/edit</code>)
+    and paste below.
+  </div>
+  <div class="flex gap-2">
+    <input id="sheetIdInput" type="text" placeholder="Paste Sheet ID here"
+           class="flex-1 border border-yellow-300 rounded-xl px-3 py-2.5 text-sm text-gray-800
+                  focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-white">
+    <button onclick="saveSheetId()"
+            class="bg-yellow-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm active:bg-yellow-600">
+      Save
+    </button>
+  </div>
+  <div class="text-xs text-yellow-600 mt-2">💡 The sheet will be initialised automatically on first use.</div>
+</div>
+
+<!-- ── Stats bar ──────────────────────────────────────────────────── -->
+<div class="grid grid-cols-4 bg-white border-b text-center divide-x divide-gray-100">
+  <div class="py-3 px-1">
+    <div id="statTotal"  class="text-xl font-black text-purple-700">—</div>
+    <div class="text-xs text-gray-400 mt-0.5">Total</div>
+  </div>
+  <div class="py-3 px-1">
+    <div id="statAmnio"  class="text-xl font-black text-teal-600">—</div>
+    <div class="text-xs text-gray-400 mt-0.5">Amnio</div>
+  </div>
+  <div class="py-3 px-1">
+    <div id="statOther"  class="text-xl font-black text-indigo-600">—</div>
+    <div class="text-xs text-gray-400 mt-0.5">CVS/POC</div>
+  </div>
+  <div class="py-3 px-1">
+    <div id="statAction" class="text-xl font-black text-orange-500">—</div>
+    <div class="flex items-center justify-center gap-1 mt-0.5">
+      <div id="pulseDot" class="hidden w-2 h-2 rounded-full bg-orange-400 pulse"></div>
+      <div class="text-xs text-gray-400">Pending</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Quick actions ──────────────────────────────────────────────── -->
+<div class="bg-white border-b px-4 py-2 flex gap-2">
+  <button onclick="loadData()"
+          class="flex-1 bg-gray-100 text-gray-700 text-sm font-semibold py-2 rounded-lg active:bg-gray-200">
+    🔄 Refresh
+  </button>
+  <button onclick="openAddSheet()"
+          class="flex-1 bg-purple-700 text-white text-sm font-semibold py-2 rounded-lg active:bg-purple-800">
+    ➕ Add Entry
+  </button>
+</div>
+
+<!-- ── Filters ────────────────────────────────────────────────────── -->
+<div class="bg-white border-b px-3 py-2 space-y-2 sticky top-14 z-20">
+  <input id="searchInput" type="search" placeholder="🔍  Search patient name…"
+         oninput="renderCards()"
+         class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700
+                focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+  <div class="flex gap-2">
+    <select id="filterProc" onchange="renderCards()"
+            class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700
+                   bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-400">
+      <option value="">All Procedures</option>
+    </select>
+    <select id="filterStatus" onchange="renderCards()"
+            class="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700
+                   bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-400">
+      <option value="">All Status</option>
+      <option value="action">⚠ Action Needed</option>
+      <option value="awaiting">⏳ Report Awaited</option>
+      <option value="done">✅ Sent to Patient</option>
+    </select>
+  </div>
+</div>
+
+<!-- ── Cards ─────────────────────────────────────────────────────── -->
+<div id="loadingRow" class="hidden text-center text-gray-400 py-12 text-sm">
+  <span class="spinner">⏳</span> Loading…
+</div>
+<div id="cardsWrap" class="px-3 pt-3 pb-28 space-y-2"></div>
+<div id="emptyState" class="hidden text-center py-16 text-gray-400 text-sm">
+  <div class="text-4xl mb-3">🧬</div>
+  <div id="emptyMsg">No records found</div>
+</div>
+
+<!-- ── Backdrop ───────────────────────────────────────────────────── -->
+<div id="backdrop" class="fixed inset-0 bg-black bg-opacity-40 z-40 hidden"
+     onclick="closeAllSheets()"></div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     Detail sheet
+     ══════════════════════════════════════════════════════════════ -->
+<div id="detailSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+  <div class="bg-purple-800 rounded-t-2xl px-5 py-4 flex justify-between items-center">
+    <div>
+      <div id="ds_name" class="text-white font-bold text-lg"></div>
+      <div id="ds_sub"  class="text-purple-300 text-xs mt-0.5"></div>
+    </div>
+    <button onclick="closeAllSheets()"
+            class="w-8 h-8 bg-purple-950 rounded-full flex items-center justify-center text-white font-bold active:opacity-70">✕</button>
+  </div>
+  <div class="px-5 py-4 overflow-y-auto" style="max-height:75vh;">
+    <div class="space-y-3 mb-5">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-gray-50 rounded-xl p-3">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Date</div>
+          <div id="ds_date"   class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Mobile</div>
+          <div id="ds_mobile" class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-gray-50 rounded-xl p-3">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Procedure</div>
+          <div id="ds_proc"   class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-3">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Lab</div>
+          <div id="ds_lab"    class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-gray-50 rounded-xl p-3">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Payment (₹)</div>
+          <div id="ds_pay"    class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+        <div id="ds_doctor_wrap" class="bg-gray-50 rounded-xl p-3 hidden">
+          <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Ref. Doctor</div>
+          <div id="ds_doctor" class="text-gray-800 font-semibold text-sm mt-0.5"></div>
+        </div>
+      </div>
+      <div id="ds_comment_wrap" class="bg-gray-50 rounded-xl p-3 hidden">
+        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide">Comment</div>
+        <div id="ds_comment" class="text-gray-800 text-sm mt-0.5"></div>
+      </div>
+
+      <!-- Report Status -->
+      <div class="border-t pt-3">
+        <div class="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">Report Status</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div id="recvBox" class="rounded-xl p-3 border-2 border-gray-200 bg-gray-50">
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Received from Lab</div>
+            <div id="ds_recv" class="text-sm font-bold text-gray-400">Not yet received</div>
+          </div>
+          <div id="sentBox" class="rounded-xl p-3 border-2 border-gray-200 bg-gray-50">
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Sent to Patient</div>
+            <div id="ds_sent" class="text-sm font-bold text-gray-400">Not yet sent</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="space-y-2">
+      <div class="flex gap-2">
+        <button onclick="editActive()"
+                class="flex-1 bg-purple-700 text-white py-3 rounded-xl font-bold text-sm active:bg-purple-800">
+          ✏️ Edit
+        </button>
+        <button id="markRecvBtn" onclick="markReceived()"
+                class="flex-1 bg-teal-500 text-white py-3 rounded-xl font-bold text-sm active:bg-teal-600">
+          📋 Mark Received
+        </button>
+      </div>
+      <button id="waSendBtn" onclick="sendWhatsApp()"
+              class="w-full bg-green-500 text-white py-3 rounded-xl font-bold text-sm active:bg-green-600">
+        📱 Send Report via WhatsApp
+      </button>
+      <button onclick="deleteActive()"
+              class="w-full bg-red-500 text-white py-3 rounded-xl font-bold text-sm active:bg-red-600">
+        🗑 Delete Entry
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     Add / Edit form sheet
+     ══════════════════════════════════════════════════════════════ -->
+<div id="formSheet"
+     class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+  <div class="bg-purple-800 rounded-t-2xl px-5 py-4 flex justify-between items-center">
+    <div>
+      <div id="formTitle" class="text-white font-bold text-lg">Add Lab Entry</div>
+      <div class="text-purple-300 text-xs mt-0.5">Fill sample details</div>
+    </div>
+    <button onclick="closeAllSheets()"
+            class="w-8 h-8 bg-purple-950 rounded-full flex items-center justify-center text-white font-bold active:opacity-70">✕</button>
+  </div>
+  <div class="px-5 pt-4 pb-10 overflow-y-auto" style="max-height:82vh;">
+    <div class="space-y-3">
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Date <span class="text-red-500">*</span></label>
+        <input id="f_date" type="date"
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Patient Name <span class="text-red-500">*</span></label>
+        <input id="f_patient" type="text" placeholder="Full name" autocomplete="off"
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Mobile No.</label>
+        <input id="f_mobile" type="tel" placeholder="10-digit number"
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Referring Doctor</label>
+        <input id="f_doctor" type="text" placeholder="Doctor name (optional)" autocomplete="off"
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+      </div>
+
+      <!-- Procedure with + button -->
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Procedure <span class="text-red-500">*</span></label>
+        <div class="flex gap-2">
+          <select id="f_procedure"
+                  class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                         focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+            <option value="">Select procedure</option>
+          </select>
+          <button onclick="toggleAddProc()"
+                  title="Add new procedure"
+                  class="w-12 h-12 flex items-center justify-center bg-purple-100 text-purple-700
+                         rounded-xl font-bold text-xl active:bg-purple-200 flex-shrink-0">
+            +
+          </button>
+        </div>
+        <div id="addProcRow" class="hidden mt-2 flex gap-2">
+          <input id="newProcInput" type="text" placeholder="New procedure name"
+                 class="flex-1 border border-purple-300 rounded-xl px-3 py-2.5 text-sm text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-purple-400 bg-purple-50">
+          <button onclick="saveNewProc()"
+                  class="bg-purple-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm active:bg-purple-800">
+            Add
+          </button>
+        </div>
+      </div>
+
+      <!-- Lab with + button -->
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Lab <span class="text-red-500">*</span></label>
+        <div class="flex gap-2">
+          <select id="f_lab"
+                  class="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                         focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+            <option value="">Select lab</option>
+          </select>
+          <button onclick="toggleAddLab()"
+                  title="Add new lab"
+                  class="w-12 h-12 flex items-center justify-center bg-purple-100 text-purple-700
+                         rounded-xl font-bold text-xl active:bg-purple-200 flex-shrink-0">
+            +
+          </button>
+        </div>
+        <div id="addLabRow" class="hidden mt-2 flex gap-2">
+          <input id="newLabInput" type="text" placeholder="New lab name"
+                 class="flex-1 border border-purple-300 rounded-xl px-3 py-2.5 text-sm text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-purple-400 bg-purple-50">
+          <button onclick="saveNewLab()"
+                  class="bg-purple-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm active:bg-purple-800">
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Payment (₹)</label>
+        <input id="f_payment" type="number" inputmode="numeric" placeholder="Amount"
+               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                      focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Comment</label>
+        <textarea id="f_comment" rows="2" placeholder="Any notes…"
+                  class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                         focus:outline-none focus:ring-2 focus:ring-purple-400 bg-gray-50 resize-none"></textarea>
+      </div>
+
+      <!-- Report status (edit mode only) -->
+      <div id="reportFields" class="hidden space-y-3 border-t pt-3">
+        <div class="text-xs font-bold text-gray-500 uppercase tracking-wide">Report Status</div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Report Received Date</label>
+          <input id="f_received" type="date"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-teal-400 bg-gray-50">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Report Sent to Patient</label>
+          <input id="f_sent" type="date"
+                 class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800
+                        focus:outline-none focus:ring-2 focus:ring-green-400 bg-gray-50">
+        </div>
+      </div>
+
+      <div id="formStatus" class="hidden rounded-xl px-4 py-3 text-sm font-semibold text-center"></div>
+
+      <div class="flex gap-3 pt-1">
+        <button id="saveBtn" onclick="saveEntry()"
+                class="flex-1 bg-purple-700 text-white py-3.5 rounded-xl font-bold text-base active:bg-purple-800">
+          💾 Save Entry
+        </button>
+        <button onclick="closeAllSheets()"
+                class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
+          Cancel
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     JavaScript
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Constants ─────────────────────────────────────────────────────
+const SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
+const SHEET_TAB = 'Lab Register';
+const COL_RANGE = `${SHEET_TAB}!A:K`;
+const HEADERS   = ['ID','Date','Patient Name','Mobile No.','Referring Doctor',
+                   'Procedure','Lab','Payment','Comment',
+                   'Report Received Date','Report Sent to Patient'];
+
+const BASE_PROCS = ['Amniocentesis','CVS','Cordocentesis','POC'];
+const BASE_LABS  = ['Supratech','SN Gene'];
+
+// ── State ─────────────────────────────────────────────────────────
+let tokenClient;
+let accessToken  = localStorage.getItem('bs_lab_token')  || '';
+let tokenExpiry  = +localStorage.getItem('bs_lab_expiry') || 0;
+let sheetId      = localStorage.getItem('bs_lab_sheetid') || '';
+let records      = [];
+let activeId     = null;
+let customProcs  = JSON.parse(localStorage.getItem('bs_lab_custom_procs') || '[]');
+let customLabs   = JSON.parse(localStorage.getItem('bs_lab_custom_labs')  || '[]');
+
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  buildDropdowns();
+  initGIS();
+  if (!sheetId) {
+    document.getElementById('setupBanner').classList.remove('hidden');
+    showEmpty('Enter your Google Sheet ID above to begin.');
+  } else if (tokenValid()) {
+    markConnected();
+    loadData();
+  } else {
+    showEmpty('Tap "Connect Sheets" to sign in and load data.');
+  }
+});
+
+// ── Dropdown builders ─────────────────────────────────────────────
+function buildDropdowns() {
+  const allProcs = [...BASE_PROCS, ...customProcs];
+  const allLabs  = [...BASE_LABS,  ...customLabs];
+
+  const fProc   = document.getElementById('filterProc');
+  const frmProc = document.getElementById('f_procedure');
+  fProc.innerHTML   = '<option value="">All Procedures</option>';
+  frmProc.innerHTML = '<option value="">Select procedure</option>';
+  allProcs.forEach(p => {
+    fProc.insertAdjacentHTML('beforeend',   `<option>${p}</option>`);
+    frmProc.insertAdjacentHTML('beforeend', `<option>${p}</option>`);
+  });
+
+  const frmLab = document.getElementById('f_lab');
+  frmLab.innerHTML = '<option value="">Select lab</option>';
+  allLabs.forEach(l => frmLab.insertAdjacentHTML('beforeend', `<option>${l}</option>`));
+}
+
+// ── Add custom procedure ──────────────────────────────────────────
+function toggleAddProc() {
+  const row = document.getElementById('addProcRow');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('newProcInput').focus();
+}
+function saveNewProc() {
+  const val = document.getElementById('newProcInput').value.trim();
+  if (!val) return;
+  if (![...BASE_PROCS, ...customProcs].includes(val)) {
+    customProcs.push(val);
+    localStorage.setItem('bs_lab_custom_procs', JSON.stringify(customProcs));
+  }
+  buildDropdowns();
+  document.getElementById('f_procedure').value = val;
+  document.getElementById('newProcInput').value = '';
+  document.getElementById('addProcRow').classList.add('hidden');
+}
+
+// ── Add custom lab ────────────────────────────────────────────────
+function toggleAddLab() {
+  const row = document.getElementById('addLabRow');
+  row.classList.toggle('hidden');
+  if (!row.classList.contains('hidden')) document.getElementById('newLabInput').focus();
+}
+function saveNewLab() {
+  const val = document.getElementById('newLabInput').value.trim();
+  if (!val) return;
+  if (![...BASE_LABS, ...customLabs].includes(val)) {
+    customLabs.push(val);
+    localStorage.setItem('bs_lab_custom_labs', JSON.stringify(customLabs));
+  }
+  buildDropdowns();
+  document.getElementById('f_lab').value = val;
+  document.getElementById('newLabInput').value = '';
+  document.getElementById('addLabRow').classList.add('hidden');
+}
+
+// ── Sheet ID setup ────────────────────────────────────────────────
+function saveSheetId() {
+  const val = document.getElementById('sheetIdInput').value.trim();
+  if (!val) { showToast('Please paste a Sheet ID', 'bg-red-500'); return; }
+  sheetId = val;
+  localStorage.setItem('bs_lab_sheetid', sheetId);
+  document.getElementById('setupBanner').classList.add('hidden');
+  showToast('✅ Sheet ID saved', 'bg-teal-500');
+  if (tokenValid()) loadData();
+  else showEmpty('Now tap "Connect Sheets" to sign in.');
+}
+
+// ── Google Identity Services ──────────────────────────────────────
+function initGIS() {
+  if (typeof google === 'undefined') { setTimeout(initGIS, 400); return; }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id : CLIENT_ID,
+    scope     : SCOPE,
+    callback  : onToken,
+  });
+}
+
+function onToken(resp) {
+  if (resp.error) { showToast('Auth error: ' + resp.error, 'bg-red-500'); return; }
+  accessToken = resp.access_token;
+  tokenExpiry = Date.now() + (resp.expires_in - 60) * 1000;
+  localStorage.setItem('bs_lab_token',  accessToken);
+  localStorage.setItem('bs_lab_expiry', tokenExpiry);
+  markConnected();
+  if (sheetId) loadData();
+  else {
+    document.getElementById('setupBanner').classList.remove('hidden');
+    showToast('✅ Signed in! Now enter your Sheet ID.', 'bg-teal-500');
+  }
+}
+
+function tokenValid() {
+  return !!(accessToken && Date.now() < tokenExpiry);
+}
+
+function handleAuth() {
+  if (tokenValid()) {
+    if (confirm('Disconnect from Google Sheets?')) {
+      accessToken = ''; tokenExpiry = 0;
+      localStorage.removeItem('bs_lab_token');
+      localStorage.removeItem('bs_lab_expiry');
+      const btn = document.getElementById('authBtn');
+      btn.textContent = 'Connect Sheets';
+      btn.className = 'text-sm font-semibold px-3 py-2 rounded-xl bg-purple-950 active:opacity-70';
+      records = [];
+      renderCards();
+    }
+    return;
+  }
+  if (!tokenClient) { initGIS(); setTimeout(handleAuth, 600); return; }
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function markConnected() {
+  const btn = document.getElementById('authBtn');
+  btn.textContent = '✅ Connected';
+  btn.className = 'text-sm font-semibold px-3 py-2 rounded-xl bg-green-700 active:bg-green-900';
+}
+
+// ── API helper ────────────────────────────────────────────────────
+async function apiFetch(url, opts = {}) {
+  if (!tokenValid()) {
+    await new Promise(res => {
+      if (!tokenClient) { res(); return; }
+      const orig = tokenClient.callback;
+      tokenClient.callback = r => { onToken(r); tokenClient.callback = orig; res(); };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+    if (!tokenValid()) throw new Error('Not signed in. Please connect Google Sheets.');
+  }
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type' : 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'HTTP ' + res.status);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// ── Ensure header row ─────────────────────────────────────────────
+async function ensureHeader() {
+  const data = await apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A1:K1`
+  );
+  if (((data.values || [])[0] || [])[0] !== 'ID') {
+    await apiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A1:K1?valueInputOption=RAW`,
+      { method: 'PUT', body: JSON.stringify({ values: [HEADERS] }) }
+    );
+  }
+}
+
+// ── Load all data ─────────────────────────────────────────────────
+async function loadData() {
+  if (!sheetId) { showToast('Enter your Sheet ID first', 'bg-red-500'); return; }
+  document.getElementById('loadingRow').classList.remove('hidden');
+  document.getElementById('cardsWrap').innerHTML = '';
+  document.getElementById('emptyState').classList.add('hidden');
+  try {
+    await ensureHeader();
+    const data = await apiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${COL_RANGE}`
+    );
+    const rows = (data.values || []).slice(1); // skip header
+    records = rows
+      .filter(r => r[0] && r[2])
+      .map(r => ({
+        id:             r[0]  || '',
+        date:           r[1]  || '',
+        patient:        r[2]  || '',
+        mobile:         r[3]  || '',
+        doctor:         r[4]  || '',
+        procedure:      r[5]  || '',
+        lab:            r[6]  || '',
+        payment:        r[7]  || '',
+        comment:        r[8]  || '',
+        reportReceived: r[9]  || '',
+        reportSent:     r[10] || '',
+      }));
+    updateStats();
+    renderCards();
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-red-500');
+    showEmpty('Error loading data. Check Sheet ID and try again.');
+  } finally {
+    document.getElementById('loadingRow').classList.add('hidden');
+  }
+}
+
+// ── Append new row ────────────────────────────────────────────────
+async function appendRow(entry) {
+  return apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    { method: 'POST', body: JSON.stringify({ values: [toRow(entry)] }) }
+  );
+}
+
+// ── Update existing row ───────────────────────────────────────────
+async function updateRow(entry) {
+  const data = await apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${COL_RANGE}`
+  );
+  const rows = (data.values || []).slice(1);
+  const idx  = rows.findIndex(r => r[0] === entry.id);
+  if (idx === -1) throw new Error('Row not found in sheet.');
+  const rowNum = idx + 2; // +1 for header, +1 for 1-index
+  return apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_TAB}!A${rowNum}:K${rowNum}?valueInputOption=RAW`,
+    { method: 'PUT', body: JSON.stringify({ values: [toRow(entry)] }) }
+  );
+}
+
+// ── Delete row ────────────────────────────────────────────────────
+async function deleteRow(entryId) {
+  const [dataRes, metaRes] = await Promise.all([
+    apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${COL_RANGE}`),
+    apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`),
+  ]);
+  const rows     = (dataRes.values || []).slice(1);
+  const idx      = rows.findIndex(r => r[0] === entryId);
+  if (idx === -1) throw new Error('Row not found in sheet.');
+  const sheetObj = metaRes.sheets.find(s => s.properties.title === SHEET_TAB);
+  if (!sheetObj) throw new Error('Sheet tab not found.');
+  const sheetGid = sheetObj.properties.sheetId;
+  const rowIndex = idx + 1; // 0-indexed; +1 for header row
+  return apiFetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 }
+          }
+        }]
+      })
+    }
+  );
+}
+
+function toRow(e) {
+  return [e.id, e.date, e.patient, e.mobile, e.doctor,
+          e.procedure, e.lab, e.payment, e.comment,
+          e.reportReceived, e.reportSent];
+}
+
+// ── Stats ─────────────────────────────────────────────────────────
+function updateStats() {
+  const total  = records.length;
+  const amnio  = records.filter(r => r.procedure === 'Amniocentesis').length;
+  const other  = records.filter(r => ['CVS','POC','Cordocentesis'].includes(r.procedure)).length;
+  const action = records.filter(r => r.reportReceived && !r.reportSent).length;
+  document.getElementById('statTotal').textContent  = total;
+  document.getElementById('statAmnio').textContent  = amnio;
+  document.getElementById('statOther').textContent  = other;
+  document.getElementById('statAction').textContent = action;
+  document.getElementById('pulseDot').classList.toggle('hidden', action === 0);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-');
+  const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${+d} ${mn[+m-1]} ${y}`;
+}
+function todayISO() { return new Date().toISOString().slice(0,10); }
+function cleanMobile(s) { return String(s||'').split('/')[0].replace(/\D/g,'').trim(); }
+
+function procColor(p) {
+  if (p === 'Amniocentesis') return 'bg-teal-100 text-teal-700';
+  if (p === 'CVS')           return 'bg-indigo-100 text-indigo-700';
+  if (p === 'Cordocentesis') return 'bg-pink-100 text-pink-700';
+  if (p === 'POC')           return 'bg-orange-100 text-orange-700';
+  return 'bg-gray-100 text-gray-600';
+}
+
+function statusBadge(r) {
+  if (r.reportSent)     return '<span class="badge bg-green-100 text-green-700">✅ Sent</span>';
+  if (r.reportReceived) return '<span class="badge bg-orange-100 text-orange-700">⚠ Act Now</span>';
+  return '<span class="badge bg-gray-100 text-gray-500">⏳ Awaited</span>';
+}
+
+// ── Render cards ──────────────────────────────────────────────────
+function renderCards() {
+  const q     = (document.getElementById('searchInput').value || '').toLowerCase();
+  const fProc = document.getElementById('filterProc').value;
+  const fStat = document.getElementById('filterStatus').value;
+
+  let list = records.filter(r => {
+    if (q && !r.patient.toLowerCase().includes(q)) return false;
+    if (fProc && r.procedure !== fProc) return false;
+    if (fStat === 'action')   return r.reportReceived && !r.reportSent;
+    if (fStat === 'awaiting') return !r.reportReceived;
+    if (fStat === 'done')     return !!r.reportSent;
+    return true;
+  });
+
+  list.sort((a, b) => {
+    const ap = (a.reportReceived && !a.reportSent) ? 1 : 0;
+    const bp = (b.reportReceived && !b.reportSent) ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+    return (b.date || '').localeCompare(a.date || '');
+  });
+
+  const wrap  = document.getElementById('cardsWrap');
+  const empty = document.getElementById('emptyState');
+
+  if (list.length === 0) {
+    wrap.innerHTML = '';
+    showEmpty(records.length === 0
+      ? 'No entries yet. Tap ➕ Add Entry to begin.'
+      : 'No records match your filters.');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  wrap.innerHTML = list.map(r => {
+    const isAction = r.reportReceived && !r.reportSent;
+    const bg = isAction
+      ? 'bg-orange-50 border-l-4 border-l-orange-400'
+      : 'bg-white border border-gray-100';
+    return `
+    <div class="card rounded-2xl shadow-sm px-4 py-3 cursor-pointer ${bg} fade-in"
+         onclick="openDetail('${r.id}')">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-gray-800 text-sm truncate">${r.patient}</div>
+          <div class="text-xs text-gray-400 mt-0.5">${fmtDate(r.date)} · ${r.lab || '—'}</div>
+        </div>
+        <div class="flex-shrink-0">${statusBadge(r)}</div>
+      </div>
+      <div class="flex items-center gap-2 mt-2">
+        <span class="badge ${procColor(r.procedure)}">${r.procedure || '—'}</span>
+        ${r.payment ? `<span class="text-xs text-gray-500 font-semibold">₹${r.payment}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showEmpty(msg) {
+  document.getElementById('emptyMsg').textContent = msg;
+  document.getElementById('emptyState').classList.remove('hidden');
+}
+
+// ── Detail sheet ──────────────────────────────────────────────────
+function openDetail(id) {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+  activeId = id;
+
+  document.getElementById('ds_name').textContent   = r.patient;
+  document.getElementById('ds_sub').textContent    = `${r.procedure} · ${fmtDate(r.date)}`;
+  document.getElementById('ds_date').textContent   = fmtDate(r.date);
+  document.getElementById('ds_mobile').textContent = r.mobile || '—';
+  document.getElementById('ds_proc').textContent   = r.procedure || '—';
+  document.getElementById('ds_lab').textContent    = r.lab || '—';
+  document.getElementById('ds_pay').textContent    = r.payment ? `₹${r.payment}` : '—';
+
+  document.getElementById('ds_doctor_wrap').classList.toggle('hidden', !r.doctor);
+  document.getElementById('ds_doctor').textContent  = r.doctor;
+  document.getElementById('ds_comment_wrap').classList.toggle('hidden', !r.comment);
+  document.getElementById('ds_comment').textContent = r.comment;
+
+  const recvBox = document.getElementById('recvBox');
+  const recvEl  = document.getElementById('ds_recv');
+  const sentBox = document.getElementById('sentBox');
+  const sentEl  = document.getElementById('ds_sent');
+
+  if (r.reportReceived) {
+    recvBox.className = 'rounded-xl p-3 border-2 border-teal-300 bg-teal-50';
+    recvEl.className  = 'text-sm font-bold text-teal-700';
+    recvEl.textContent = fmtDate(r.reportReceived);
+    document.getElementById('markRecvBtn').textContent = '📋 Update Date';
+  } else {
+    recvBox.className = 'rounded-xl p-3 border-2 border-gray-200 bg-gray-50';
+    recvEl.className  = 'text-sm font-bold text-gray-400';
+    recvEl.textContent = 'Not yet received';
+    document.getElementById('markRecvBtn').textContent = '📋 Mark Received';
+  }
+
+  if (r.reportSent) {
+    sentBox.className = 'rounded-xl p-3 border-2 border-green-300 bg-green-50';
+    sentEl.className  = 'text-sm font-bold text-green-700';
+    sentEl.textContent = fmtDate(r.reportSent);
+    document.getElementById('waSendBtn').textContent = '📱 Resend via WhatsApp';
+  } else {
+    sentBox.className = 'rounded-xl p-3 border-2 border-gray-200 bg-gray-50';
+    sentEl.className  = 'text-sm font-bold text-gray-400';
+    sentEl.textContent = 'Not yet sent';
+    document.getElementById('waSendBtn').textContent = '📱 Send Report via WhatsApp';
+  }
+
+  document.getElementById('waSendBtn').style.display = r.mobile ? 'block' : 'none';
+  openSheet('detailSheet');
+}
+
+// ── Mark received ─────────────────────────────────────────────────
+async function markReceived() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  r.reportReceived = todayISO();
+  const btn = document.getElementById('markRecvBtn');
+  btn.textContent = '⏳ Saving…';
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    showToast('✅ Received date saved to Sheet', 'bg-teal-500');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-red-500');
+  }
+}
+
+// ── Send WhatsApp ─────────────────────────────────────────────────
+async function sendWhatsApp() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  const mobile = cleanMobile(r.mobile);
+  if (!mobile) { showToast('No mobile number saved', 'bg-red-500'); return; }
+
+  const name = r.patient.trim().split(' ')[0];
+  const msg  = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.\n\nKindly visit the clinic or contact us to collect your report.\n\nThank you 🏥`;
+
+  r.reportSent = todayISO();
+  document.getElementById('waSendBtn').textContent = '⏳ Saving…';
+  try {
+    await updateRow(r);
+    updateStats(); renderCards(); openDetail(activeId);
+    window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+    showToast('📱 WhatsApp opened & date stamped', 'bg-green-500');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-red-500');
+  }
+}
+
+// ── Edit ──────────────────────────────────────────────────────────
+function editActive() {
+  const r = records.find(x => x.id === activeId);
+  if (!r) return;
+  document.getElementById('formTitle').textContent = 'Edit Entry';
+  document.getElementById('f_date').value      = r.date;
+  document.getElementById('f_patient').value   = r.patient;
+  document.getElementById('f_mobile').value    = r.mobile;
+  document.getElementById('f_doctor').value    = r.doctor;
+  document.getElementById('f_procedure').value = r.procedure;
+  document.getElementById('f_lab').value       = r.lab;
+  document.getElementById('f_payment').value   = r.payment;
+  document.getElementById('f_comment').value   = r.comment;
+  document.getElementById('f_received').value  = r.reportReceived;
+  document.getElementById('f_sent').value      = r.reportSent;
+  document.getElementById('reportFields').classList.remove('hidden');
+  document.getElementById('formStatus').classList.add('hidden');
+  closeSheet('detailSheet');
+  openSheet('formSheet');
+}
+
+// ── Delete ────────────────────────────────────────────────────────
+async function deleteActive() {
+  if (!confirm('Delete this entry from the Google Sheet? This cannot be undone.')) return;
+  showToast('🗑 Deleting…', 'bg-gray-600');
+  try {
+    await deleteRow(activeId);
+    records = records.filter(x => x.id !== activeId);
+    updateStats(); renderCards(); closeAllSheets();
+    showToast('🗑 Entry deleted', 'bg-red-500');
+  } catch(e) {
+    showToast('Error: ' + e.message, 'bg-red-500');
+  }
+}
+
+// ── Open add form ─────────────────────────────────────────────────
+function openAddSheet() {
+  if (!tokenValid()) { showToast('Please connect Google Sheets first', 'bg-red-500'); return; }
+  if (!sheetId)      { showToast('Please enter your Sheet ID first', 'bg-red-500'); return; }
+  activeId = null;
+  document.getElementById('formTitle').textContent = 'Add Lab Entry';
+  ['f_patient','f_mobile','f_doctor','f_comment'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_date').value      = todayISO();
+  document.getElementById('f_procedure').value = '';
+  document.getElementById('f_lab').value       = '';
+  document.getElementById('f_payment').value   = '';
+  document.getElementById('f_received').value  = '';
+  document.getElementById('f_sent').value      = '';
+  document.getElementById('reportFields').classList.add('hidden');
+  document.getElementById('formStatus').classList.add('hidden');
+  document.getElementById('addProcRow').classList.add('hidden');
+  document.getElementById('addLabRow').classList.add('hidden');
+  openSheet('formSheet');
+}
+
+// ── Save entry ────────────────────────────────────────────────────
+async function saveEntry() {
+  const date    = document.getElementById('f_date').value.trim();
+  const patient = document.getElementById('f_patient').value.trim().toUpperCase();
+  const proc    = document.getElementById('f_procedure').value;
+  const lab     = document.getElementById('f_lab').value;
+
+  if (!date || !patient || !proc || !lab) {
+    setFormStatus('Please fill Date, Patient Name, Procedure and Lab', 'bg-red-100 text-red-700');
+    return;
+  }
+
+  const entry = {
+    id:             activeId || `lab_${Date.now()}`,
+    date, patient,
+    mobile:         document.getElementById('f_mobile').value.trim(),
+    doctor:         document.getElementById('f_doctor').value.trim(),
+    procedure:      proc, lab,
+    payment:        document.getElementById('f_payment').value.trim(),
+    comment:        document.getElementById('f_comment').value.trim(),
+    reportReceived: document.getElementById('f_received').value || '',
+    reportSent:     document.getElementById('f_sent').value     || '',
+  };
+
+  const btn = document.getElementById('saveBtn');
+  btn.textContent = '⏳ Saving to Sheet…';
+  btn.disabled = true;
+
+  try {
+    if (activeId) {
+      await updateRow(entry);
+      const idx = records.findIndex(x => x.id === activeId);
+      if (idx >= 0) records[idx] = entry;
+    } else {
+      await appendRow(entry);
+      records.unshift(entry);
+    }
+    updateStats(); renderCards(); closeAllSheets();
+    showToast(activeId ? '✅ Entry updated' : '✅ Entry saved to Sheet', 'bg-purple-700');
+  } catch(e) {
+    setFormStatus('Error: ' + e.message, 'bg-red-100 text-red-700');
+  } finally {
+    btn.textContent = '💾 Save Entry';
+    btn.disabled = false;
+  }
+}
+
+// ── Sheet UI helpers ──────────────────────────────────────────────
+function openSheet(id) {
+  document.getElementById('backdrop').classList.remove('hidden');
+  document.getElementById(id).style.transform = 'translateY(0)';
+}
+function closeSheet(id) {
+  document.getElementById(id).style.transform = 'translateY(100%)';
+}
+function closeAllSheets() {
+  closeSheet('detailSheet');
+  closeSheet('formSheet');
+  document.getElementById('backdrop').classList.add('hidden');
+}
+
+function showToast(msg, cls = 'bg-gray-700') {
+  const ti = document.getElementById('toastInner');
+  ti.className = `rounded-xl px-4 py-3 text-sm font-semibold text-center shadow-lg text-white ${cls}`;
+  ti.textContent = msg;
+  document.getElementById('toast').classList.remove('hidden');
+  setTimeout(() => document.getElementById('toast').classList.add('hidden'), 2800);
+}
+
+// ── Change Sheet ID ───────────────────────────────────────────────
+function changeSheet() {
+  const banner = document.getElementById('setupBanner');
+  const input  = document.getElementById('sheetIdInput');
+  banner.classList.remove('hidden');
+  input.value = sheetId || '';
+  input.focus();
+  input.select();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('Paste your new Sheet ID in the yellow banner', 'bg-purple-700');
+}
+
+function setFormStatus(msg, cls) {
+  const el = document.getElementById('formStatus');
+  el.className = `rounded-xl px-4 py-3 text-sm font-semibold text-center ${cls}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+</script>
+</body>
+</html>
