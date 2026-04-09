@@ -663,11 +663,11 @@ async function resolveSheetTab() {
 // ── Ensure header row ─────────────────────────────────────────────
 async function ensureHeader() {
   const data = await apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:K1`
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:L1`
   );
   if (((data.values || [])[0] || [])[0] !== 'ID') {
     await apiFetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:K1?valueInputOption=RAW`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:L1?valueInputOption=RAW`,
       { method: 'PUT', body: JSON.stringify({ values: [HEADERS] }) }
     );
   }
@@ -730,7 +730,7 @@ async function updateRow(entry) {
   if (idx === -1) throw new Error('Row not found in sheet.');
   const rowNum = idx + 2; // +1 for header, +1 for 1-index
   return apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A${rowNum}:K${rowNum}?valueInputOption=RAW`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A${rowNum}:L${rowNum}?valueInputOption=RAW`,
     { method: 'PUT', body: JSON.stringify({ values: [toRow(entry)] }) }
   );
 }
