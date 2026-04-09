@@ -877,7 +877,7 @@ async function sendWhatsApp() {
   if (!mobile) { showToast('No mobile number saved', 'bg-red-500'); return; }
 
   const name = r.patient.trim().split(' ')[0];
-  const msg  = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.\n\nKindly visit the clinic or contact us to collect your report.\n\nThank you 🏥`;
+  const msg  = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
 
   r.reportSent = todayISO();
   document.getElementById('waSendBtn').textContent = '⏳ Saving…';
