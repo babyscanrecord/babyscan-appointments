@@ -657,7 +657,7 @@ async function resolveSheetTab() {
   const firstTitle = (meta.sheets || [])[0]?.properties?.title || 'Sheet1';
   // Wrap in single quotes only if name contains spaces
   SHEET_REF = firstTitle.includes(' ') ? `'${firstTitle}'` : firstTitle;
-  COL_RANGE = `${SHEET_REF}!A:K`;
+  COL_RANGE = `${SHEET_REF}!A:L`;
 }
 
 // ── Ensure header row ─────────────────────────────────────────────
@@ -665,7 +665,10 @@ async function ensureHeader() {
   const data = await apiFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:L1`
   );
-  if (((data.values || [])[0] || [])[0] !== 'ID') {
+  const existing = (data.values || [])[0] || [];
+  // Write full header if missing OR if columns are fewer than expected (e.g. sheet was
+  // created before the Reports column was added — this expands the table to column L)
+  if (existing[0] !== 'ID' || existing.length < HEADERS.length) {
     await apiFetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A1:L1?valueInputOption=RAW`,
       { method: 'PUT', body: JSON.stringify({ values: [HEADERS] }) }
@@ -715,7 +718,7 @@ async function loadData() {
 // ── Append new row ────────────────────────────────────────────────
 async function appendRow(entry) {
   return apiFetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A:K:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${SHEET_REF}!A:L:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     { method: 'POST', body: JSON.stringify({ values: [toRow(entry)] }) }
   );
 }
