@@ -1002,18 +1002,26 @@ async function sendWhatsApp() {
     : '';
   const msg = `Dear ${name},\n\nYour *${r.procedure}* report from Baby Scan clinic is now ready.${reportLines}\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
 
-  // Stamp all unsent reports as sent today
+  // ── Open WhatsApp immediately (must be synchronous from user tap) ─
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  // ── Stamp dates and save to Sheet in background ───────────────────
   const today = todayISO();
   (r.reports || []).forEach(rp => { if (!rp.sent) rp.sent = today; });
   r.reportSent = today;
-  document.getElementById('waSendBtn').textContent = '⏳ Saving…';
+
+  const btn = document.getElementById('waSendBtn');
+  btn.textContent = '⏳ Saving…';
+  btn.disabled = true;
   try {
     await updateRow(r);
     updateStats(); renderCards(); openDetail(activeId);
-    window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
-    showToast('📱 WhatsApp opened & all reports stamped', 'bg-green-500');
+    showToast('✅ Dates saved to Sheet', 'bg-green-600');
   } catch(e) {
-    showToast('Error: ' + e.message, 'bg-red-500');
+    showToast('WhatsApp sent but Sheet save failed: ' + e.message, 'bg-orange-500');
+  } finally {
+    btn.textContent = '📱 Resend via WhatsApp';
+    btn.disabled = false;
   }
 }
 
@@ -1027,19 +1035,21 @@ async function sendSingleReport(reportName) {
   const name = r.patient.trim().split(' ')[0];
   const msg  = `Dear ${name},\n\nYour *${reportName}* report from Baby Scan clinic is now ready.\n\nWe do not provide printed (hard copy) reports by default. If you would like a hard copy, please inform us in advance so we can arrange it accordingly.\n\nરિપોર્ટની પ્રિન્ટ જોઈતી હોય તો અગાઉથી જાણ કરવી.\n\nThank you 🏥`;
 
+  // ── Open WhatsApp immediately ─────────────────────────────────────
+  window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+
+  // ── Stamp and save in background ──────────────────────────────────
   const today = todayISO();
   const rp = (r.reports || []).find(x => x.name === reportName);
   if (rp) rp.sent = today;
-  // If all reports sent, stamp reportSent
   if (r.reports && r.reports.every(x => x.sent)) r.reportSent = today;
 
   try {
     await updateRow(r);
     updateStats(); renderCards(); openDetail(activeId);
-    window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
-    showToast(`📱 ${reportName} sent & stamped`, 'bg-green-500');
+    showToast(`✅ ${reportName} stamped in Sheet`, 'bg-green-600');
   } catch(e) {
-    showToast('Error: ' + e.message, 'bg-red-500');
+    showToast('WhatsApp sent but Sheet save failed: ' + e.message, 'bg-orange-500');
   }
 }
 
