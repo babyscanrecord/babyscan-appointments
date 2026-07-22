@@ -1233,6 +1233,53 @@
     // the same Google account, giving us true cross-device sharing without
     // any backend server. Requires the 'drive.appdata' OAuth scope above.
     let _driveOffsetsFileId = null;   // cached across the session
+    let _consentInFlight    = null;   // dedupe simultaneous re-consent prompts
+
+    // Detects the "missing/insufficient scope" case, forces a fresh consent
+    // screen (with prompt:'consent' which GIS honours even if a stale grant
+    // exists), and retries the Drive call once. This lets devices with
+    // pre-scope-change cached tokens self-heal without the user having to
+    // manually disconnect + reconnect from the button.
+    function _isScopeError(err) {
+      const m = String((err && err.message) || err || '').toLowerCase();
+      return m.includes('insufficient')
+          || m.includes('scope')
+          || m.includes(' 401')
+          || m.includes(' 403')
+          || m.includes('unauthorized')
+          || m.includes('forbidden');
+    }
+
+    function _forceReconsent() {
+      if (_consentInFlight) return _consentInFlight;
+      _consentInFlight = new Promise((res, rej) => {
+        if (!tokenClient) return rej(new Error('token client not ready'));
+        const orig = tokenClient.callback;
+        tokenClient.callback = (r) => {
+          tokenClient.callback = orig;
+          _consentInFlight = null;
+          if (r && r.error) return rej(new Error(r.error));
+          onToken(r);   // updates accessToken + tokenExpiry
+          res();
+        };
+        // prompt:'consent' guarantees the browser gets a fresh scope grant,
+        // even if the account already had an older grant for the same
+        // client id with only the calendar scope.
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+      return _consentInFlight;
+    }
+
+    async function _driveCallWithReconsent(fn) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (!_isScopeError(err)) throw err;
+        toast('Please approve Drive access on the popup…', 'red');
+        await _forceReconsent();
+        return await fn();
+      }
+    }
 
     async function _findOffsetsFileId() {
       if (_driveOffsetsFileId) return _driveOffsetsFileId;
@@ -1252,6 +1299,7 @@
 
     async function loadOffsetsFromDrive() {
       try {
+        await _driveCallWithReconsent(async () => {
         const id = await _findOffsetsFileId();
         if (!id) return;   // no config yet — leave local defaults alone
         const res = await apiFetch(
@@ -1273,6 +1321,7 @@
         if (sheet && sheet.classList.contains('translate-y-0')) {
           renderOffsetRows();
         }
+        });
       } catch (err) {
         console.warn('loadOffsetsFromDrive failed:', err);
       }
@@ -1285,6 +1334,7 @@
         saved_at: new Date().toISOString(),
       }, null, 2);
 
+      return _driveCallWithReconsent(async () => {
       const existingId = await _findOffsetsFileId();
       if (existingId) {
         // Update the existing file's content in place (PATCH /upload).
@@ -1323,6 +1373,7 @@
       if (!res || !res.ok) throw new Error('Drive create failed: ' + (res && res.status));
       const created = await res.json();
       _driveOffsetsFileId = created.id;
+      });
     }
 
     // Mirrors FormF_Receipt._patient_arrival_time — subtracts that slot's
