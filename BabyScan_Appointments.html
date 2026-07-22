@@ -44,10 +44,16 @@
         <div class="text-lg font-bold leading-tight">🏥 Baby Scan</div>
         <div class="text-xs text-teal-100">Fetal Medicine &amp; Gynec Imaging</div>
       </div>
-      <button id="authBtn" onclick="handleAuth()"
-              class="text-sm font-semibold px-3 py-2 rounded-xl bg-teal-700 active:bg-teal-900">
-        Connect Calendar
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="offsetBtn" onclick="openOffsetSheet()"
+                class="text-sm font-semibold px-3 py-2 rounded-xl bg-teal-700 active:bg-teal-900">
+          ⏱ Offsets
+        </button>
+        <button id="authBtn" onclick="handleAuth()"
+                class="text-sm font-semibold px-3 py-2 rounded-xl bg-teal-700 active:bg-teal-900">
+          Connect Calendar
+        </button>
+      </div>
     </div>
   </div>
 
@@ -86,10 +92,6 @@
             class="flex-1 bg-orange-500 text-white text-sm font-semibold py-2 rounded-lg active:bg-orange-600">
       🚫 Block
     </button>
-    <a href="https://babyscanrecord.github.io/babyscan-appointments/BabyScan_LabRegister.html"
-       class="flex-1 bg-purple-600 text-white text-sm font-semibold py-2 rounded-lg active:bg-purple-700 text-center">
-      🧪 Lab Register
-    </a>
   </div>
 
   <!-- ── Block banner (shown when a block exists for the selected date) ────── -->
@@ -201,6 +203,57 @@
             🚫 Confirm Block
           </button>
           <button onclick="closeBlockSheet()"
+                  class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
+            Cancel
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Appointment Offset bottom sheet ──────────────────────────────────── -->
+  <div id="offsetSheet"
+       class="modal-sheet fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transform translate-y-full">
+
+    <!-- Sheet header -->
+    <div class="bg-teal-500 rounded-t-2xl px-5 py-4 flex justify-between items-center">
+      <div>
+        <div class="text-white font-bold text-lg">⏱ Appointment Offsets</div>
+        <div class="text-teal-100 text-xs mt-0.5">Arrival time shown to patients, per slot</div>
+      </div>
+      <button onclick="closeOffsetSheet()"
+              class="w-8 h-8 bg-teal-700 rounded-full flex items-center justify-center text-white font-bold active:bg-teal-900">
+        ✕
+      </button>
+    </div>
+
+    <div class="px-5 pt-4 pb-6 overflow-y-auto" style="max-height:70vh;">
+      <div class="space-y-4">
+
+        <!-- Default fallback -->
+        <div class="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-xl px-4 py-3">
+          <label class="text-sm font-bold text-teal-700">Default (fallback)</label>
+          <div class="flex items-center gap-1">
+            <input id="offsetDefault" type="number" min="0" max="180"
+                   class="w-16 border-2 border-teal-300 rounded-lg px-2 py-1.5 text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-400">
+            <span class="text-xs text-gray-500">min</span>
+          </div>
+        </div>
+
+        <!-- Per-slot list -->
+        <div>
+          <div class="text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Per Time Slot</div>
+          <div id="offsetRows" class="divide-y divide-gray-100"></div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-1">
+          <button onclick="saveOffsets()"
+                  class="flex-1 bg-teal-500 text-white py-3.5 rounded-xl font-bold text-base active:bg-teal-600">
+            ✔ Save
+          </button>
+          <button onclick="closeOffsetSheet()"
                   class="bg-gray-200 text-gray-600 px-5 py-3.5 rounded-xl font-bold active:bg-gray-300">
             Cancel
           </button>
@@ -387,7 +440,13 @@
        ════════════════════════════════════════════════════════════════════════ -->
   <script>
     // ── Constants ──────────────────────────────────────────────────────────
-    const SCOPES = 'https://www.googleapis.com/auth/calendar';
+    // 'drive.appdata' scope gives access to a hidden per-app Drive folder
+    // that's invisible in the user's normal Drive UI. Used to sync the
+    // appointment-offset config across every device signed in with the
+    // same Google account — see the Drive sync block near the bottom.
+    const SCOPES = 'https://www.googleapis.com/auth/calendar '
+                 + 'https://www.googleapis.com/auth/drive.appdata';
+    const OFFSETS_DRIVE_FILENAME = 'babyscan_offsets.json';
     const TZ     = 'Asia/Kolkata';
     const SLOTS  = [
       '8:30 AM',
@@ -416,6 +475,7 @@
       if (tokenValid()) {
         markConnected();
         loadSlots();
+        loadOffsetsFromDrive();   // sync per-slot offsets from Drive appDataFolder
       } else {
         renderSlots({});
       }
@@ -439,6 +499,7 @@
       localStorage.setItem('bs_expiry', tokenExpiry);
       markConnected();
       loadSlots();
+      loadOffsetsFromDrive();   // pull latest cross-device offsets
     }
 
     function tokenValid() {
@@ -1074,20 +1135,210 @@
       window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(msg), '_blank');
     }
 
-    // Mirrors FormF_Receipt._patient_arrival_time rules
+    // ── Appointment offset (minutes) — configurable PER SLOT ─────────────────
+    // Mirrors FormF_Receipt.get_offset_minutes() on the desktop app. Stored
+    // client-side in localStorage since this page has no backend/config file.
+    // Desktop and this web app are independent — each keeps its own values.
+    //   bs_offset_minutes  — single number, fallback default for unset slots
+    //   bs_offsets_json    — JSON object { "10:30 AM": 15, ... } per-slot overrides
+    function getDefaultOffset() {
+      const v = parseInt(localStorage.getItem('bs_offset_minutes'), 10);
+      return Number.isFinite(v) ? v : 30;
+    }
+
+    function getSlotOffsets() {
+      try {
+        const raw = localStorage.getItem('bs_offsets_json');
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+
+    function getOffsetForSlot(slot) {
+      const map = getSlotOffsets();
+      if (slot && Object.prototype.hasOwnProperty.call(map, slot)) {
+        const v = parseInt(map[slot], 10);
+        if (Number.isFinite(v)) return v;
+      }
+      return getDefaultOffset();
+    }
+
+    function openOffsetSheet() {
+      renderOffsetRows();
+      document.getElementById('backdrop').classList.remove('hidden');
+      document.getElementById('offsetSheet').classList.replace('translate-y-full', 'translate-y-0');
+    }
+
+    function closeOffsetSheet() {
+      document.getElementById('backdrop').classList.add('hidden');
+      document.getElementById('offsetSheet').classList.replace('translate-y-0', 'translate-y-full');
+    }
+
+    function renderOffsetRows() {
+      const wrap    = document.getElementById('offsetRows');
+      const slotMap = getSlotOffsets();
+      const defVal  = getDefaultOffset();
+      document.getElementById('offsetDefault').value = defVal;
+
+      wrap.innerHTML = SLOTS.map(slot => {
+        const has = Object.prototype.hasOwnProperty.call(slotMap, slot);
+        const val = has ? slotMap[slot] : defVal;
+        return `
+          <div class="flex items-center justify-between py-2">
+            <span class="text-sm text-gray-700 font-medium">${slot}</span>
+            <div class="flex items-center gap-1">
+              <input type="number" min="0" max="180" data-slot="${slot}" value="${val}"
+                     class="offset-slot-input w-16 border-2 border-gray-200 rounded-lg px-2 py-1.5 text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-400">
+              <span class="text-xs text-gray-500">min</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function saveOffsets() {
+      const defVal = parseInt(document.getElementById('offsetDefault').value, 10);
+      if (!Number.isFinite(defVal) || defVal < 0 || defVal > 180) {
+        toast('Default offset must be 0–180', 'red');
+        return;
+      }
+      const map = {};
+      let bad = false;
+      document.querySelectorAll('.offset-slot-input').forEach(inp => {
+        const v = parseInt(inp.value, 10);
+        if (!Number.isFinite(v) || v < 0 || v > 180) { bad = true; return; }
+        map[inp.dataset.slot] = v;
+      });
+      if (bad) {
+        toast('Each slot must be 0–180 minutes', 'red');
+        return;
+      }
+      // Save locally first — page keeps working offline / before sign-in
+      localStorage.setItem('bs_offset_minutes', String(defVal));
+      localStorage.setItem('bs_offsets_json', JSON.stringify(map));
+      closeOffsetSheet();
+      toast('Appointment offsets saved', 'green');
+
+      // Then push to Drive appDataFolder so every other signed-in device
+      // picks up the same values. Fire-and-forget — errors surface as a
+      // toast but never block the local save above.
+      saveOffsetsToDrive(defVal, map).catch(err => {
+        console.warn('Drive sync failed:', err);
+        toast('Saved locally — Drive sync failed', 'red');
+      });
+    }
+
+    // ── Google Drive appDataFolder sync ──────────────────────────────────────
+    // The offset config is stored in a small JSON file inside a hidden
+    // per-app folder in the user's Drive. That folder is invisible in the
+    // Drive UI but automatically syncs across every device signed in with
+    // the same Google account, giving us true cross-device sharing without
+    // any backend server. Requires the 'drive.appdata' OAuth scope above.
+    let _driveOffsetsFileId = null;   // cached across the session
+
+    async function _findOffsetsFileId() {
+      if (_driveOffsetsFileId) return _driveOffsetsFileId;
+      const url = 'https://www.googleapis.com/drive/v3/files'
+                + '?spaces=appDataFolder'
+                + '&q=' + encodeURIComponent(`name='${OFFSETS_DRIVE_FILENAME}'`)
+                + '&fields=files(id,name)';
+      const res = await apiFetch(url);
+      if (!res || !res.ok) return null;
+      const data = await res.json();
+      if (data.files && data.files.length) {
+        _driveOffsetsFileId = data.files[0].id;
+        return _driveOffsetsFileId;
+      }
+      return null;
+    }
+
+    async function loadOffsetsFromDrive() {
+      try {
+        const id = await _findOffsetsFileId();
+        if (!id) return;   // no config yet — leave local defaults alone
+        const res = await apiFetch(
+          `https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+        if (!res || !res.ok) return;
+        const cfg = await res.json();
+        if (typeof cfg.default_offset_minutes === 'number') {
+          localStorage.setItem('bs_offset_minutes',
+                               String(cfg.default_offset_minutes));
+        }
+        if (cfg.slot_offsets && typeof cfg.slot_offsets === 'object') {
+          localStorage.setItem('bs_offsets_json',
+                               JSON.stringify(cfg.slot_offsets));
+        }
+        // If the offsets sheet is currently open, refresh its rows to show
+        // the just-arrived values (otherwise the user would see the stale
+        // pre-sync numbers until they close and reopen the sheet).
+        const sheet = document.getElementById('offsetSheet');
+        if (sheet && sheet.classList.contains('translate-y-0')) {
+          renderOffsetRows();
+        }
+      } catch (err) {
+        console.warn('loadOffsetsFromDrive failed:', err);
+      }
+    }
+
+    async function saveOffsetsToDrive(defVal, slotMap) {
+      const body = JSON.stringify({
+        default_offset_minutes: defVal,
+        slot_offsets: slotMap,
+        saved_at: new Date().toISOString(),
+      }, null, 2);
+
+      const existingId = await _findOffsetsFileId();
+      if (existingId) {
+        // Update the existing file's content in place (PATCH /upload).
+        const res = await apiFetch(
+          `https://www.googleapis.com/upload/drive/v3/files/${existingId}`
+          + '?uploadType=media',
+          { method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body });
+        if (!res || !res.ok) throw new Error('Drive update failed: ' + (res && res.status));
+        return;
+      }
+
+      // No existing file — create one via multipart upload so we can set
+      // both metadata (name, parents: ['appDataFolder']) and the content
+      // in a single request.
+      const boundary = '-------bs_offset_boundary_' + Date.now();
+      const metadata = {
+        name    : OFFSETS_DRIVE_FILENAME,
+        parents : ['appDataFolder'],
+      };
+      const multipart =
+        `--${boundary}\r\n` +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) + '\r\n' +
+        `--${boundary}\r\n` +
+        'Content-Type: application/json\r\n\r\n' +
+        body + '\r\n' +
+        `--${boundary}--`;
+
+      const res = await apiFetch(
+        'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        { method: 'POST',
+          headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+          body: multipart });
+      if (!res || !res.ok) throw new Error('Drive create failed: ' + (res && res.status));
+      const created = await res.json();
+      _driveOffsetsFileId = created.id;
+    }
+
+    // Mirrors FormF_Receipt._patient_arrival_time — subtracts that slot's
+    // configured offset from the appointment time (falls back to default
+    // if the slot has no override).
     function patientArrivalTime(timeStr) {
-      const AS_IS    = new Set(['8:30 AM', '9:00 AM', '12:30 PM',
-                                '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM', '3:00 PM']);
-      const MINUS_45 = new Set(['4:30 PM']);
-      if (!timeStr || AS_IS.has(timeStr)) return timeStr;
+      if (!timeStr) return timeStr;
       const parts = timeStr.split(' ');
       if (parts.length < 2) return timeStr;
       const [tp, ampm] = parts;
       let [h, m] = tp.split(':').map(Number);
       if (ampm === 'PM' && h !== 12) h += 12;
       if (ampm === 'AM' && h === 12) h = 0;
-      const shift = MINUS_45.has(timeStr) ? 45 : 30;
-      let total = h * 60 + m - shift;
+      const shift = getOffsetForSlot(timeStr);
+      if (shift <= 0) return timeStr;
+      let total = ((h * 60 + m - shift) % 1440 + 1440) % 1440;  // safe wrap
       const rh  = Math.floor(total / 60);
       const rm  = total % 60;
       const rap = rh >= 12 ? 'PM' : 'AM';
@@ -1100,6 +1351,7 @@
     function closeAnySheet() {
       closeModal();
       closeBlockSheet();
+      closeOffsetSheet();
     }
 
     // ── Block Time sheet ───────────────────────────────────────────────────
